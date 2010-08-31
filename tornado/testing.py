@@ -31,6 +31,10 @@ import tornado.ioloop
 import traceback
 import unittest
 
+# TODO(bdarnell): come up with a better way to specify this
+if os.environ.get('USE_SIMPLE_HTTPCLIENT'):
+    from tornado.simple_httpclient import SimpleAsyncHTTPClient as AsyncHTTPClient
+
 class AsyncTestCase(unittest.TestCase):
     """TestCase subclass for testing IOLoop-based asynchronous code.
 

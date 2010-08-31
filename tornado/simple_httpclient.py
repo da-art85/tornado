@@ -5,7 +5,7 @@ from cStringIO import StringIO
 from tornado.httpclient import HTTPRequest, HTTPResponse, HTTPError
 from tornado.httputil import HTTPHeaders
 from tornado.ioloop import IOLoop
-from tornado.iostream import IOStream
+from tornado.iostream import IOStream, SSLIOStream
 from tornado import stack_context
 
 import contextlib
@@ -14,6 +14,11 @@ import logging
 import re
 import socket
 import urlparse
+
+try:
+    import ssl # python 2.6+
+except ImportError:
+    ssl = None
 
 class SimpleAsyncHTTPClient(object):
     # TODO: singleton magic?
@@ -39,8 +44,19 @@ class SimpleAsyncHTTPClient(object):
             parsed = urlparse.urlsplit(request.url)
             sock = socket.socket()
             #sock.setblocking(False) # TODO non-blocking connect
-            sock.connect((parsed.netloc, 80))  # TODO: other ports, https
-            stream = IOStream(sock, io_loop=self.io_loop)
+            if ":" in parsed.netloc:
+                host, _, port = parsed.netloc.partition(":")
+                port = int(port)
+            else:
+                host = parsed.netloc
+                port = 443 if parsed.scheme == "https" else 80
+            sock.connect((host, port))
+            if parsed.scheme == "https":
+                # TODO: cert verification, etc
+                sock = ssl.wrap_socket(sock, do_handshake_on_connect=False)
+                stream = SSLIOStream(sock, io_loop=self.io_loop)
+            else:
+                stream = IOStream(sock, io_loop=self.io_loop)
             # TODO: query parameters
             if "Host" not in request.headers:
                 request.headers["Host"] = parsed.netloc
