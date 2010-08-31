@@ -25,6 +25,7 @@ import email.utils
 import errno
 import httplib
 import logging
+import os
 import pycurl
 import sys
 import threading
@@ -652,6 +653,10 @@ def main():
             print response.headers
         if options.print_body:
             print response.body
+
+# TODO(bdarnell): come up with a better way to specify this
+if os.environ.get('USE_SIMPLE_HTTPCLIENT'):
+    from tornado.simple_httpclient import SimpleAsyncHTTPClient as AsyncHTTPClient
 
 if __name__ == "__main__":
     main()
