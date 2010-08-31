@@ -31,6 +31,8 @@ class SimpleAsyncHTTPClient(object):
     def fetch(self, request, callback, **kwargs):
         if not isinstance(request, HTTPRequest):
             request = HTTPRequest(url=request, **kwargs)
+        if not isinstance(request.headers, HTTPHeaders):
+            request.headers = HTTPHeaders(request.headers)
         callback = stack_context.wrap(callback)
 
         @contextlib.contextmanager
