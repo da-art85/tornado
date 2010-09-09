@@ -59,17 +59,25 @@ class SimpleAsyncHTTPClient(object):
                 stream = SSLIOStream(sock, io_loop=self.io_loop)
             else:
                 stream = IOStream(sock, io_loop=self.io_loop)
-            # TODO: query parameters
             if "Host" not in request.headers:
                 request.headers["Host"] = parsed.netloc
-            request_lines = ["%s %s HTTP/1.1" % (request.method,
-                                                 parsed.path or '/')]
+            has_body = request.method in ("POST", "PUT")
+            if has_body:
+                assert request.body is not None
+                request.headers["Content-Length"] = len(request.body)
+            else:
+                assert request.body is None
+            req_path = ((parsed.path or '/') +
+                    (('?' + parsed.query) if parsed.query else ''))
+            request_lines = ["%s %s HTTP/1.1" % (request.method, req_path)]
             for k, v in request.headers.get_all():
                 request_lines.append("%s: %s" % (k, v))
             if logging.getLogger().isEnabledFor(logging.DEBUG):
                 for line in request_lines:
                     logging.debug(line)
             stream.write("\r\n".join(request_lines) + "\r\n\r\n")
+            if has_body:
+                stream.write(request.body)
             stream.read_until("\r\n\r\n", functools.partial(self._on_headers,
                                                             request, callback, stream))
 
