@@ -49,7 +49,7 @@ class WebSocketHandler(tornado.web.RequestHandler):
     Web Sockets are not standard HTTP connections. The "handshake" is HTTP,
     but after the handshake, the protocol is message-based. Consequently,
     most of the Tornado HTTP facilities are not available in handlers of this
-    type. The only communication methods available to you are send_message()
+    type. The only communication methods available to you are write_message()
     and close(). Likewise, your request handler class should
     implement open() method rather than get() or post().
 
@@ -105,7 +105,7 @@ class WebSocketHandler(tornado.web.RequestHandler):
                     origin=self.request.headers["Origin"],
                     host=self.request.host,
                     path=self.request.path,
-                    challeng=challenge)))
+                    challenge=challenge)))
         self.async_callback(self.open)(*self.open_args, **self.open_kwargs)
         self._receive_message()
 

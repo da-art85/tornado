@@ -8,6 +8,11 @@ import re
 import unittest
 import urllib
 
+try:
+    import ssl
+except ImportError:
+    ssl = None
+
 class HelloWorldRequestHandler(RequestHandler):
     def get(self):
         self.finish("Hello world")
@@ -33,3 +38,14 @@ class SSLTest(AsyncHTTPTestCase, LogTrapTestCase):
                                prepare_curl_callback=disable_cert_check)
         response = self.wait()
         self.assertEqual(response.body, "Hello world")
+
+if (ssl is None or
+    (pycurl.version_info()[5].startswith('GnuTLS') and
+     pycurl.version_info()[2] < 0x71400)):
+    # Don't try to run ssl tests if we don't have the ssl module (python 2.5).
+    # Additionally, when libcurl (< 7.21.0) is compiled against gnutls
+    # instead of openssl (which is the default on at least some versions of
+    # ubuntu), libcurl does the ssl handshake in blocking mode.  That will
+    # cause this test to deadlock as the blocking network ops happen in
+    # the same IOLoop as the server.
+    del SSLTest
