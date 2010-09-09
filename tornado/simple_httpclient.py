@@ -88,6 +88,9 @@ class SimpleAsyncHTTPClient(object):
         assert match
         code = int(match.group(1))
         headers = HTTPHeaders.parse(header_data)
+        if request.header_callback is not None:
+            for k, v in headers.get_all():
+                request.header_callback("%s: %s\r\n" % (k, v))
         if headers.get("Transfer-Encoding") == "chunked":
             chunks = []
             stream.read_until("\r\n", functools.partial(self._on_chunk_length,
@@ -118,7 +121,11 @@ class SimpleAsyncHTTPClient(object):
 
     def _on_chunk_data(self, request, callback, stream, code, headers, chunks, data):
         assert data[-2:] == "\r\n"
-        chunks.append(data[:-2])
+        chunk = data[:-2]
+        if request.streaming_callback is not None:
+            request.streaming_callback(chunk)
+        else:
+            chunks.append(chunk)
         stream.read_until("\r\n", functools.partial(self._on_chunk_length,
                                                     request, callback, stream, code, headers, chunks))
 
