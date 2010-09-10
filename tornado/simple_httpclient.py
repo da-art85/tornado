@@ -72,6 +72,9 @@ class _HTTPConnection(object):
                     self.request.body)
             else:
                 assert self.request.body is None
+            if (self.request.method == "POST" and
+                "Content-Type" not in self.request.headers):
+                self.request.headers["Content-Type"] = "application/x-www-form-urlencoded"
             req_path = ((parsed.path or '/') +
                     (('?' + parsed.query) if parsed.query else ''))
             request_lines = ["%s %s HTTP/1.1" % (self.request.method,
@@ -117,8 +120,16 @@ class _HTTPConnection(object):
                             "don't know how to read %s", self.request.url)
 
     def _on_body(self, data):
+        if self.request.streaming_callback:
+            if self.chunks is None:
+                # if chunks is not None, we already called streaming_callback
+                # in _on_chunk_data
+                self.request.streaming_callback(data)
+            buffer = StringIO()
+        else:
+            buffer = StringIO(data) # TODO: don't require one big string?
         response = HTTPResponse(self.request, self.code, headers=self.headers,
-                                buffer=StringIO(data)) # TODO
+                                buffer=buffer)
         self.callback(response)
         self.callback = None
 
