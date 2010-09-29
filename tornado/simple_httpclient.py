@@ -9,6 +9,7 @@ from tornado.iostream import IOStream, SSLIOStream
 from tornado import stack_context
 
 import contextlib
+import errno
 import functools
 import logging
 import re
@@ -49,45 +50,58 @@ class _HTTPConnection(object):
         with stack_context.StackContext(self.cleanup):
             parsed = urlparse.urlsplit(self.request.url)
             sock = socket.socket()
-            #sock.setblocking(False) # TODO non-blocking connect
+            sock.setblocking(False)
             if ":" in parsed.netloc:
                 host, _, port = parsed.netloc.partition(":")
                 port = int(port)
             else:
                 host = parsed.netloc
                 port = 443 if parsed.scheme == "https" else 80
-            sock.connect((host, port))
-            if parsed.scheme == "https":
-                # TODO: cert verification, etc
-                sock = ssl.wrap_socket(sock, do_handshake_on_connect=False)
-                self.stream = SSLIOStream(sock, io_loop=self.io_loop)
-            else:
-                self.stream = IOStream(sock, io_loop=self.io_loop)
-            if "Host" not in self.request.headers:
-                self.request.headers["Host"] = parsed.netloc
-            has_body = self.request.method in ("POST", "PUT")
-            if has_body:
-                assert self.request.body is not None
-                self.request.headers["Content-Length"] = len(
-                    self.request.body)
-            else:
-                assert self.request.body is None
-            if (self.request.method == "POST" and
-                "Content-Type" not in self.request.headers):
-                self.request.headers["Content-Type"] = "application/x-www-form-urlencoded"
-            req_path = ((parsed.path or '/') +
-                    (('?' + parsed.query) if parsed.query else ''))
-            request_lines = ["%s %s HTTP/1.1" % (self.request.method,
-                                                 req_path)]
-            for k, v in self.request.headers.get_all():
-                request_lines.append("%s: %s" % (k, v))
-            if logging.getLogger().isEnabledFor(logging.DEBUG):
-                for line in request_lines:
-                    logging.debug(line)
-            self.stream.write("\r\n".join(request_lines) + "\r\n\r\n")
-            if has_body:
-                self.stream.write(self.request.body)
-            self.stream.read_until("\r\n\r\n", self._on_headers)
+            try:
+                sock.connect((host, port))
+            except socket.error, e:
+                # In non-blocking mode connect() always raises EINPROGRESS
+                if e.errno != errno.EINPROGRESS:
+                    raise
+            # Wait for the non-blocking connect to complete
+            self.io_loop.add_handler(sock.fileno(),
+                                     functools.partial(self._on_connect,
+                                                       sock, parsed),
+                                     IOLoop.WRITE)
+
+    def _on_connect(self, sock, parsed, fd, events):
+        self.io_loop.remove_handler(fd)
+        if parsed.scheme == "https":
+            # TODO: cert verification, etc
+            sock = ssl.wrap_socket(sock, do_handshake_on_connect=False)
+            self.stream = SSLIOStream(sock, io_loop=self.io_loop)
+        else:
+            self.stream = IOStream(sock, io_loop=self.io_loop)
+        if "Host" not in self.request.headers:
+            self.request.headers["Host"] = parsed.netloc
+        has_body = self.request.method in ("POST", "PUT")
+        if has_body:
+            assert self.request.body is not None
+            self.request.headers["Content-Length"] = len(
+                self.request.body)
+        else:
+            assert self.request.body is None
+        if (self.request.method == "POST" and
+            "Content-Type" not in self.request.headers):
+            self.request.headers["Content-Type"] = "application/x-www-form-urlencoded"
+        req_path = ((parsed.path or '/') +
+                (('?' + parsed.query) if parsed.query else ''))
+        request_lines = ["%s %s HTTP/1.1" % (self.request.method,
+                                             req_path)]
+        for k, v in self.request.headers.get_all():
+            request_lines.append("%s: %s" % (k, v))
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            for line in request_lines:
+                logging.debug(line)
+        self.stream.write("\r\n".join(request_lines) + "\r\n\r\n")
+        if has_body:
+            self.stream.write(self.request.body)
+        self.stream.read_until("\r\n\r\n", self._on_headers)
 
     @contextlib.contextmanager
     def cleanup(self):
