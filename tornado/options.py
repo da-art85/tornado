@@ -55,12 +55,15 @@ import re
 import sys
 import time
 
+from tornado.escape import utf8, _unicode
+
 # For pretty log messages, if available
 try:
     import curses
 except:
     curses = None
-
+if sys.version_info[0] >= 3:
+    curses = None
 
 def define(name, default=None, type=str, help=None, metavar=None,
            multiple=False):
@@ -295,7 +298,7 @@ class _Option(object):
         return value.lower() not in ("false", "0", "f")
 
     def _parse_string(self, value):
-        return value.decode("utf-8")
+        return _unicode(value)
 
 
 class Error(Exception):

@@ -20,6 +20,7 @@ import errno
 import logging
 import socket
 
+from tornado.escape import utf8
 from tornado import ioloop
 from tornado import stack_context
 
@@ -79,8 +80,8 @@ class IOStream(object):
         self.io_loop = io_loop or ioloop.IOLoop.instance()
         self.max_buffer_size = max_buffer_size
         self.read_chunk_size = read_chunk_size
-        self._read_buffer = ""
-        self._write_buffer = ""
+        self._read_buffer = utf8("")
+        self._write_buffer = utf8("")
         self._read_delimiter = None
         self._read_bytes = None
         self._read_callback = None

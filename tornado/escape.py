@@ -21,6 +21,14 @@ import re
 import xml.sax.saxutils
 import urllib
 
+import sys
+if sys.version_info[0] < 3:
+    bytes_type = str
+    string_type = unicode
+else:
+    bytes_type = bytes
+    string_type = str
+
 # json module is in the standard library as of python 2.6; fall back to
 # simplejson if present for older versions.
 try:
@@ -89,9 +97,9 @@ def url_unescape(value):
 
 
 def utf8(value):
-    if isinstance(value, unicode):
+    if isinstance(value, string_type):
         return value.encode("utf-8")
-    assert isinstance(value, str)
+    assert isinstance(value, bytes_type)
     return value
 
 
@@ -180,9 +188,9 @@ def linkify(text, shorten=False, extra_params="",
 
 
 def _unicode(value):
-    if isinstance(value, str):
+    if isinstance(value, bytes_type):
         return value.decode("utf-8")
-    assert isinstance(value, unicode)
+    assert isinstance(value, string_type)
     return value
 
 

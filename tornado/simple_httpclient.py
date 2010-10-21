@@ -2,6 +2,7 @@
 from __future__ import with_statement
 
 from cStringIO import StringIO
+from tornado.escape import utf8, _unicode
 from tornado.httpclient import HTTPRequest, HTTPResponse, HTTPError
 from tornado.httputil import HTTPHeaders
 from tornado.ioloop import IOLoop
@@ -67,7 +68,7 @@ class _HTTPConnection(object):
         self.headers = None
         self.chunks = None
         with stack_context.StackContext(self.cleanup):
-            parsed = urlparse.urlsplit(self.request.url)
+            parsed = urlparse.urlsplit(_unicode(self.request.url))
             if ":" in parsed.netloc:
                 host, _, port = parsed.netloc.partition(":")
                 port = int(port)
@@ -107,10 +108,10 @@ class _HTTPConnection(object):
         if logging.getLogger().isEnabledFor(logging.DEBUG):
             for line in request_lines:
                 logging.debug(line)
-        self.stream.write("\r\n".join(request_lines) + "\r\n\r\n")
+        self.stream.write(utf8("\r\n".join(request_lines) + "\r\n\r\n"))
         if has_body:
-            self.stream.write(self.request.body)
-        self.stream.read_until("\r\n\r\n", self._on_headers)
+            self.stream.write(utf8(self.request.body))
+        self.stream.read_until(utf8("\r\n\r\n"), self._on_headers)
 
     @contextlib.contextmanager
     def cleanup(self):

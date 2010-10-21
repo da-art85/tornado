@@ -24,6 +24,7 @@ import socket
 import time
 import urlparse
 
+from tornado.escape import utf8, _unicode
 from tornado import httputil
 from tornado import ioloop
 from tornado import iostream
@@ -282,7 +283,7 @@ class HTTPConnection(object):
         self.xheaders = xheaders
         self._request = None
         self._request_finished = False
-        self.stream.read_until("\r\n\r\n", self._on_headers)
+        self.stream.read_until(utf8("\r\n\r\n"), self._on_headers)
 
     def write(self, chunk):
         assert self._request, "Request closed"
@@ -316,13 +317,13 @@ class HTTPConnection(object):
         if disconnect:
             self.stream.close()
             return
-        self.stream.read_until("\r\n\r\n", self._on_headers)
+        self.stream.read_until(utf8("\r\n\r\n"), self._on_headers)
 
     def _on_headers(self, data):
-        eol = data.find("\r\n")
+        eol = data.find(utf8("\r\n"))
         start_line = data[:eol]
-        method, uri, version = start_line.split(" ")
-        if not version.startswith("HTTP/"):
+        method, uri, version = start_line.split(utf8(" "))
+        if not version.startswith(utf8("HTTP/")):
             raise Exception("Malformed HTTP version in HTTP Request-Line")
         headers = httputil.HTTPHeaders.parse(data[eol:])
         self._request = HTTPRequest(
@@ -443,7 +444,7 @@ class HTTPRequest(object):
         self._start_time = time.time()
         self._finish_time = None
 
-        scheme, netloc, path, query, fragment = urlparse.urlsplit(uri)
+        scheme, netloc, path, query, fragment = urlparse.urlsplit(_unicode(uri))
         self.path = path
         self.query = query
         arguments = cgi.parse_qs(query)

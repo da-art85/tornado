@@ -521,7 +521,7 @@ class RequestHandler(object):
         if self.application._wsgi:
             raise Exception("WSGI applications do not support flush()")
 
-        chunk = "".join(self._write_buffer)
+        chunk = _utf8("").join(self._write_buffer)
         self._write_buffer = []
         if not self._headers_written:
             self._headers_written = True
@@ -540,7 +540,7 @@ class RequestHandler(object):
             return
 
         if headers or chunk:
-            self.request.write(headers + chunk)
+            self.request.write(escape.utf8(headers) + escape.utf8(chunk))
 
     def finish(self, chunk=None):
         """Finishes this response, ending the HTTP request."""
@@ -833,8 +833,8 @@ class RequestHandler(object):
                     self.finish()
 
     def _generate_headers(self):
-        lines = [self.request.version + " " + str(self._status_code) + " " +
-                 httplib.responses[self._status_code]]
+        lines = [str(self.request.version) + " " + str(self._status_code) + " " +
+                 str(httplib.responses[self._status_code])]
         lines.extend(["%s: %s" % (n, v) for n, v in self._headers.iteritems()])
         for cookie_dict in getattr(self, "_new_cookies", []):
             for cookie in cookie_dict.values():

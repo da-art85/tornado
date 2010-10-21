@@ -16,6 +16,8 @@
 
 """HTTP utility code shared by clients and servers."""
 
+from tornado.escape import utf8
+
 class HTTPHeaders(dict):
     """A dictionary that maintains Http-Header-Case for all keys.
 
@@ -85,7 +87,7 @@ class HTTPHeaders(dict):
         >>> h.get('content-type')
         'text/html'
         """
-        name, value = line.split(":", 1)
+        name, value = line.split(utf8(":"), 1)
         self.add(name, value.strip())
 
     @classmethod
@@ -132,7 +134,7 @@ class HTTPHeaders(dict):
         >>> HTTPHeaders._normalize_name("coNtent-TYPE")
         'Content-Type'
         """
-        return "-".join([w.capitalize() for w in name.split("-")])
+        return utf8("-").join([w.capitalize() for w in utf8(name).split(utf8("-"))])
 
 
 def doctests():
