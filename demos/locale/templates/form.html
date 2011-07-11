@@ -1,0 +1,28 @@
+<html>
+<head>
+<title>Locale test</title>
+</head>
+<body>
+
+<!-- Based on sample from http://google-opensource.blogspot.com/2011/06/pseudolocalization-to-catch-i18n-errors.html -->
+
+<div style="width: 300px">
+  <div style="background: #ddd">{{_("Add")}} {{_("Edit")}} {{_("Delete")}} <span style="float: right">{{_("Help")}}</div>
+  <h3 align="center">Add Contact</h3>
+  <form>
+    <table>
+      <tr><td>Name: <td><input type="text" name="name"></tr>
+      <tr><td>Number: <td><input type="text" name="number"></tr>
+      <tr><td>Sex (optional):<td>
+          <input type="radio" name="sex" value="male">Male
+          <input type="radio" name="sex" value="female">Female
+      </tr>
+    </table>
+    <div align="center">
+      <input type="submit">
+      <input type="reset" value="Clear">
+    </div>
+  </form>
+</div>
+</body>
+</html>
