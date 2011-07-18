@@ -349,7 +349,7 @@ class HTTPConnection(object):
             headers = httputil.HTTPHeaders.parse(data[eol:])
             self._request = HTTPRequest(
                 connection=self, method=method, uri=uri, version=version,
-                headers=headers, remote_ip=self.address[0])
+                headers=headers, remote_ip=native_str(self.address[0]))
 
             content_length = headers.get("Content-Length")
             if content_length:

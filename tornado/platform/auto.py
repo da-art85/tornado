@@ -27,5 +27,7 @@ import os
 
 if os.name == 'nt':
     from tornado.platform.windows import set_close_exec, Waker
+elif os.name == 'java':
+    from tornado.platform.jython import set_close_exec, Waker
 else:
     from tornado.platform.posix import set_close_exec, Waker

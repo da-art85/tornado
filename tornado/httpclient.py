@@ -28,6 +28,7 @@ supported version is 7.18.2, and the recommended version is 7.21.1 or newer.
 import calendar
 import email.utils
 import httplib
+import os
 import time
 import weakref
 
@@ -275,6 +276,10 @@ class HTTPRequest(object):
         self.max_redirects = max_redirects
         self.user_agent = user_agent
         self.use_gzip = use_gzip
+        if os.name == 'java':
+            # jython's zlib doesn't understand the magic to decode gzip
+            # headers as in cpython.
+            self.use_gzip = False
         self.network_interface = network_interface
         self.streaming_callback = streaming_callback
         self.header_callback = header_callback
