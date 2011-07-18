@@ -2,6 +2,7 @@ from tornado.iostream import IOStream
 from tornado.testing import AsyncHTTPTestCase, LogTrapTestCase, get_unused_port
 from tornado.util import b
 from tornado.web import RequestHandler, Application
+import os
 import socket
 
 class HelloHandler(RequestHandler):
@@ -34,6 +35,10 @@ class TestIOStream(AsyncHTTPTestCase, LogTrapTestCase):
         self.assertEqual(data, b("200"))
 
     def test_connection_refused(self):
+        if os.name == 'java':
+            # jython's select implementation doesn't appear to report errors
+            # correctly.
+            return
         # When a connection is refused, the connect callback should not
         # be run.  (The kqueue IOLoop used to behave differently from the
         # epoll IOLoop in this respect)

@@ -234,3 +234,6 @@ class UnixSocketTest(AsyncTestCase, LogTrapTestCase):
         stream.read_bytes(int(headers["Content-Length"]), self.stop)
         body = self.wait()
         self.assertEqual(body, b("Hello world"))
+
+if not hasattr(socket, 'AF_UNIX'):
+    del UnixSocketTest

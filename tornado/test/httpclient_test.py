@@ -5,6 +5,7 @@ from __future__ import with_statement
 import base64
 import binascii
 import gzip
+import os
 import socket
 
 from contextlib import closing
@@ -116,6 +117,9 @@ class HTTPClientCommonTestCase(AsyncHTTPTestCase, LogTrapTestCase):
                          b("Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ=="))
 
     def test_gzip(self):
+        if os.name == 'java':
+            # jython's zlib module doesn't work with our gzip code
+            return
         # All the tests in this file should be using gzip, but this test
         # ensures that it is in fact getting compressed.
         # Setting Accept-Encoding manually bypasses the client's

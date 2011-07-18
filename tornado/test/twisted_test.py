@@ -17,7 +17,6 @@
 Unittest for the twisted-style reactor.
 """
 
-import fcntl
 import os
 import sys
 import thread
@@ -29,6 +28,7 @@ try:
     from twisted.internet.interfaces import IReadDescriptor, IWriteDescriptor
     from tornado.platform.twisted import TornadoReactor
     from zope.interface import implements
+    import fcntl
 except ImportError:
     twisted = None
     IReadDescriptor = IWriteDescriptor = None

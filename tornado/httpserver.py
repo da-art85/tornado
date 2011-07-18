@@ -261,7 +261,7 @@ class HTTPServer(object):
                 stream = iostream.SSLIOStream(connection, io_loop=self.io_loop)
             else:
                 stream = iostream.IOStream(connection, io_loop=self.io_loop)
-            if connection.family not in (socket.AF_INET, socket.AF_INET6):
+            if getattr(connection, 'family', None) not in (socket.AF_INET, socket.AF_INET6):
                 # Unix (or other) socket; fake the remote address
                 address = ('0.0.0.0', 0)
             HTTPConnection(stream, address, self.request_callback,

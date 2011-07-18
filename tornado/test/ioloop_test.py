@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 import unittest
 import time
 
@@ -20,7 +21,9 @@ class TestIOLoop(AsyncTestCase, LogTrapTestCase):
             self.start_time = time.time()
         self.io_loop.add_timeout(time.time(), schedule_callback)
         self.wait()
-        self.assertAlmostEqual(time.time(), self.start_time, places=2)
+        # jython is pretty slow, at least if the jit hasn't warmed up.
+        places = 1 if os.name == 'java' else 2
+        self.assertAlmostEqual(time.time(), self.start_time, places=places)
         self.assertTrue(self.called)
 
 if __name__ == "__main__":
