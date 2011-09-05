@@ -23,6 +23,7 @@ import errno
 import logging
 import socket
 import sys
+import re
 
 from tornado import ioloop
 from tornado import stack_context
@@ -89,6 +90,7 @@ class IOStream(object):
         self._read_buffer_size = 0
         self._write_buffer_frozen = False
         self._read_delimiter = None
+        self._read_regex = None
         self._read_bytes = None
         self._read_until_close = False
         self._read_callback = None
@@ -124,6 +126,20 @@ class IOStream(object):
         self._connect_callback = stack_context.wrap(callback)
         self._add_io_state(self.io_loop.WRITE)
 
+    def read_until_regex(self, regex, callback):
+        """Call callback when we read the given regex pattern."""
+        assert not self._read_callback, "Already reading"
+        self._read_regex = re.compile(regex)
+        self._read_callback = stack_context.wrap(callback)
+        while True:
+            # See if we've already got the data from a previous read
+            if self._read_from_buffer():
+                return
+            self._check_closed()
+            if self._read_to_buffer() == 0:
+                break
+        self._add_io_state(self.io_loop.READ)
+        
     def read_until(self, delimiter, callback):
         """Call callback when we read the given delimiter."""
         assert not self._read_callback, "Already reading"
@@ -199,8 +215,12 @@ class IOStream(object):
                 self.io_loop.remove_handler(self.socket.fileno())
             self.socket.close()
             self.socket = None
-            if self._close_callback:
-                self._run_callback(self._close_callback)
+            if self._close_callback and self._pending_callbacks == 0:
+                # if there are pending callbacks, don't run the close callback
+                # until they're done (see _maybe_add_error_handler)
+                cb = self._close_callback
+                self._close_callback = None
+                self._run_callback(cb)
 
     def reading(self):
         """Returns true if we are currently reading from the stream."""
@@ -370,6 +390,15 @@ class IOStream(object):
                 self._run_callback(callback,
                                    self._consume(loc + delimiter_len))
                 return True
+        elif self._read_regex is not None:
+            _merge_prefix(self._read_buffer, sys.maxint)
+            m = self._read_regex.search(self._read_buffer[0])
+            if m:
+                callback = self._read_callback
+                self._read_callback = None
+                self._read_regex = None
+                self._run_callback(callback, self._consume(m.end()))
+                return True
         return False
 
     def _handle_connect(self):
@@ -449,7 +478,13 @@ class IOStream(object):
 
     def _maybe_add_error_listener(self):
         if self._state is None and self._pending_callbacks == 0:
-            self._add_io_state(0)
+            if self.socket is None:
+                cb = self._close_callback
+                if cb is not None:
+                    self._close_callback = None
+                    self._run_callback(cb)
+            else:
+                self._add_io_state(0)
 
     def _add_io_state(self, state):
         """Adds `state` (IOLoop.{READ,WRITE} flags) to our event handler.

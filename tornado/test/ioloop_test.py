@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import datetime
 import unittest
 import time
 
@@ -25,6 +26,10 @@ class TestIOLoop(AsyncTestCase, LogTrapTestCase):
         places = 1 if os.name == 'java' else 2
         self.assertAlmostEqual(time.time(), self.start_time, places=places)
         self.assertTrue(self.called)
+
+    def test_add_timeout_timedelta(self):
+        self.io_loop.add_timeout(datetime.timedelta(microseconds=1), self.stop)
+        self.wait()
 
 if __name__ == "__main__":
     unittest.main()

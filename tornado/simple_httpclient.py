@@ -62,7 +62,7 @@ class SimpleAsyncHTTPClient(AsyncHTTPClient):
     """
     def initialize(self, io_loop=None, max_clients=10,
                    max_simultaneous_connections=None,
-                   hostname_mapping=None):
+                   hostname_mapping=None, max_buffer_size=104857600):
         """Creates a AsyncHTTPClient.
 
         Only a single AsyncHTTPClient instance exists per IOLoop
@@ -79,12 +79,16 @@ class SimpleAsyncHTTPClient(AsyncHTTPClient):
         It can be used to make local DNS changes when modifying system-wide
         settings like /etc/hosts is not possible or desirable (e.g. in
         unittests).
+
+        max_buffer_size is the number of bytes that can be read by IOStream. It
+        defaults to 100mb.
         """
         self.io_loop = io_loop
         self.max_clients = max_clients
         self.queue = collections.deque()
         self.active = {}
         self.hostname_mapping = hostname_mapping
+        self.max_buffer_size = max_buffer_size
 
     def fetch(self, request, callback, **kwargs):
         if not isinstance(request, HTTPRequest):
@@ -106,12 +110,12 @@ class SimpleAsyncHTTPClient(AsyncHTTPClient):
                 key = object()
                 self.active[key] = (request, callback)
                 _HTTPConnection(self.io_loop, self, request,
-                                functools.partial(self._on_fetch_complete,
-                                                  key, callback))
+                                functools.partial(self._release_fetch, key),
+                                callback,
+                                self.max_buffer_size)
 
-    def _on_fetch_complete(self, key, callback, response):
+    def _release_fetch(self, key):
         del self.active[key]
-        callback(response)
         self._process_queue()
 
 
@@ -119,12 +123,14 @@ class SimpleAsyncHTTPClient(AsyncHTTPClient):
 class _HTTPConnection(object):
     _SUPPORTED_METHODS = set(["GET", "HEAD", "POST", "PUT", "DELETE"])
 
-    def __init__(self, io_loop, client, request, callback):
+    def __init__(self, io_loop, client, request, release_callback,
+                 final_callback, max_buffer_size):
         self.start_time = time.time()
         self.io_loop = io_loop
         self.client = client
         self.request = request
-        self.callback = callback
+        self.release_callback = release_callback
+        self.final_callback = final_callback
         self.code = None
         self.headers = None
         self.chunks = None
@@ -182,13 +188,15 @@ class _HTTPConnection(object):
                     ssl_options["certfile"] = request.client_cert
                 self.stream = SSLIOStream(socket.socket(af, socktype, proto),
                                           io_loop=self.io_loop,
-                                          ssl_options=ssl_options)
+                                          ssl_options=ssl_options,
+                                          max_buffer_size=max_buffer_size)
             else:
                 self.stream = IOStream(socket.socket(af, socktype, proto),
-                                       io_loop=self.io_loop)
+                                       io_loop=self.io_loop,
+                                       max_buffer_size=max_buffer_size)
             timeout = min(request.connect_timeout, request.request_timeout)
             if timeout:
-                self._connect_timeout = self.io_loop.add_timeout(
+                self._timeout = self.io_loop.add_timeout(
                     self.start_time + timeout,
                     self._on_timeout)
             self.stream.set_close_callback(self._on_close)
@@ -197,15 +205,14 @@ class _HTTPConnection(object):
 
     def _on_timeout(self):
         self._timeout = None
-        if self.callback is not None:
-            self.callback(HTTPResponse(self.request, 599,
-                                       error=HTTPError(599, "Timeout")))
-            self.callback = None
+        self._run_callback(HTTPResponse(self.request, 599,
+                                        request_time=time.time() - self.start_time,
+                                        error=HTTPError(599, "Timeout")))
         self.stream.close()
 
     def _on_connect(self, parsed):
         if self._timeout is not None:
-            self.io_loop.remove_callback(self._timeout)
+            self.io_loop.remove_timeout(self._timeout)
             self._timeout = None
         if self.request.request_timeout:
             self._timeout = self.io_loop.add_timeout(
@@ -262,7 +269,20 @@ class _HTTPConnection(object):
         self.stream.write(b("\r\n").join(request_lines) + b("\r\n\r\n"))
         if self.request.body is not None:
             self.stream.write(self.request.body)
-        self.stream.read_until(b("\r\n\r\n"), self._on_headers)
+        self.stream.read_until_regex(b("\r?\n\r?\n"), self._on_headers)
+
+    def _release(self):
+        if self.release_callback is not None:
+            release_callback = self.release_callback
+            self.release_callback = None
+            release_callback()
+
+    def _run_callback(self, response):
+        self._release()
+        if self.final_callback is not None:
+            final_callback = self.final_callback
+            self.final_callback = None
+            final_callback(response)
 
     @contextlib.contextmanager
     def cleanup(self):
@@ -270,21 +290,19 @@ class _HTTPConnection(object):
             yield
         except Exception, e:
             logging.warning("uncaught exception", exc_info=True)
-            if self.callback is not None:
-                callback = self.callback
-                self.callback = None
-                callback(HTTPResponse(self.request, 599, error=e))
+            self._run_callback(HTTPResponse(self.request, 599, error=e, 
+                                request_time=time.time() - self.start_time,
+                                ))
 
     def _on_close(self):
-        if self.callback is not None:
-            callback = self.callback
-            self.callback = None
-            callback(HTTPResponse(self.request, 599,
-                                  error=HTTPError(599, "Connection closed")))
+        self._run_callback(HTTPResponse(
+                self.request, 599,
+                request_time=time.time() - self.start_time,
+                error=HTTPError(599, "Connection closed")))
 
     def _on_headers(self, data):
         data = native_str(data.decode("latin1"))
-        first_line, _, header_data = data.partition("\r\n")
+        first_line, _, header_data = data.partition("\n")
         match = re.match("HTTP/1.[01] ([0-9]+)", first_line)
         assert match
         self.code = int(match.group(1))
@@ -301,6 +319,15 @@ class _HTTPConnection(object):
             self.chunks = []
             self.stream.read_until(b("\r\n"), self._on_chunk_length)
         elif "Content-Length" in self.headers:
+            if "," in self.headers["Content-Length"]:
+                # Proxies sometimes cause Content-Length headers to get
+                # duplicated.  If all the values are identical then we can
+                # use them but if they differ it's an error.
+                pieces = re.split(r',\s*', self.headers["Content-Length"])
+                if any(i != pieces[0] for i in pieces):
+                    raise ValueError("Multiple unequal Content-Lengths: %r" % 
+                                     self.headers["Content-Length"])
+                self.headers["Content-Length"] = pieces[0]
             self.stream.read_bytes(int(self.headers["Content-Length"]),
                                    self._on_body)
         else:
@@ -331,15 +358,19 @@ class _HTTPConnection(object):
             new_request.max_redirects -= 1
             del new_request.headers["Host"]
             new_request.original_request = original_request
-            self.client.fetch(new_request, self.callback)
-            self.callback = None
+            final_callback = self.final_callback
+            self.final_callback = None
+            self._release()
+            self.client.fetch(new_request, final_callback)
+            self.stream.close()
             return
         response = HTTPResponse(original_request,
                                 self.code, headers=self.headers,
+                                request_time=time.time() - self.start_time,
                                 buffer=buffer,
                                 effective_url=self.request.url)
-        self.callback(response)
-        self.callback = None
+        self._run_callback(response)
+        self.stream.close()
 
     def _on_chunk_length(self, data):
         # TODO: "chunk extensions" http://tools.ietf.org/html/rfc2616#section-3.6.1
