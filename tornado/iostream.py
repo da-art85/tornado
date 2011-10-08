@@ -199,6 +199,12 @@ class IOStream(object):
         self._read_until_close = True
         self._read_callback = stack_context.wrap(callback)
         self._streaming_callback = stack_context.wrap(streaming_callback)
+        while True:
+            if self._read_from_buffer():
+                return
+            self._check_closed()
+            if self._read_to_buffer() == 0:
+                break
         self._add_io_state(self.io_loop.READ)
 
     def write(self, data, callback=None):
