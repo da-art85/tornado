@@ -8,3 +8,4 @@ tornado.egg-info
 _auto2to3*
 .tox
 *.class
+.vagrant

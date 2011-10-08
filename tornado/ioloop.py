@@ -102,7 +102,7 @@ class IOLoop(object):
     NONE = 0
     READ = _EPOLLIN
     WRITE = _EPOLLOUT
-    ERROR = _EPOLLERR | _EPOLLHUP | _EPOLLRDHUP
+    ERROR = _EPOLLERR | _EPOLLHUP
 
     def __init__(self, impl=None):
         self._impl = impl or _poll()
@@ -477,7 +477,7 @@ class PeriodicCallback(object):
     def _schedule_next(self):
         if self._running:
             current_time = time.time()
-            while self._next_timeout < current_time:
+            while self._next_timeout <= current_time:
                 self._next_timeout += self.callback_time / 1000.0
             self.io_loop.add_timeout(self._next_timeout, self._run)
 
