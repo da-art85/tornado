@@ -34,7 +34,6 @@ import os
 import pkgutil
 import sys
 import types
-import subprocess
 
 from tornado import ioloop
 from tornado import process
@@ -147,6 +146,7 @@ def _reload():
         # os.execv is broken on Windows and can't properly parse command line
         # arguments and executable name if they contain whitespaces. subprocess
         # fixes that behavior.
+        import subprocess
         subprocess.Popen([sys.executable] + sys.argv)
         sys.exit(0)
     else:

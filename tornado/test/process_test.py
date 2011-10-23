@@ -110,6 +110,6 @@ class ProcessTest(LogTrapTestCase):
             raise
             
 
-if os.name != 'posix' or sys.platform == 'cygwin':
+if os.name != 'posix' or sys.platform in ('cygwin', 'cli'):
     # All sorts of unixisms here
     del ProcessTest

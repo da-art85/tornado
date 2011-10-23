@@ -42,6 +42,13 @@ else:
         return s
     bytes_type = str
 
+import sys
+if sys.platform == 'cli':
+    # see escape.py
+    def b(s):
+        return s
+    bytes_type = str
+
 def doctests():
     import doctest
     return doctest.DocTestSuite()

@@ -5,6 +5,7 @@ from tornado.util import b
 from tornado.web import RequestHandler, Application
 import os
 import socket
+import sys
 import time
 
 class HelloHandler(RequestHandler):
@@ -87,6 +88,7 @@ class TestIOStream(AsyncHTTPTestCase, LogTrapTestCase):
         response.rethrow()
 
     def test_read_until_close(self):
+        if sys.platform == 'cli': return
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         s.connect(("localhost", self.get_http_port()))
         stream = IOStream(s, io_loop=self.io_loop)
@@ -126,6 +128,7 @@ class TestIOStream(AsyncHTTPTestCase, LogTrapTestCase):
             client.close()
 
     def test_streaming_until_close(self):
+        if sys.platform == 'cli': return
         server, client = self.make_iostream_pair()
         try:
             chunks = []
@@ -146,6 +149,7 @@ class TestIOStream(AsyncHTTPTestCase, LogTrapTestCase):
             client.close()
 
     def test_delayed_close_callback(self):
+        if sys.platform == 'cli': return
         # The scenario:  Server closes the connection while there is a pending
         # read that can be served out of buffered data.  The client does not
         # run the close_callback as soon as it detects the close, but rather

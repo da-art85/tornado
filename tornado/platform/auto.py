@@ -24,10 +24,15 @@ Most code that needs access to this functionality should do e.g.::
 """
 
 import os
+import sys
 
 if os.name == 'nt':
     from tornado.platform.windows import set_close_exec, Waker
 elif os.name == 'java':
+    from tornado.platform.jython import set_close_exec, Waker
+elif sys.platform =='cli':
+    # ironpython.  Run with 
+    # mono ../IronPython-2.7.1/ipy.exe -X:Frames -m tornado.test.runtests
     from tornado.platform.jython import set_close_exec, Waker
 else:
     from tornado.platform.posix import set_close_exec, Waker

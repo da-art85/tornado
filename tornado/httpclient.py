@@ -29,6 +29,7 @@ import calendar
 import email.utils
 import httplib
 import os
+import sys
 import time
 import weakref
 
@@ -282,7 +283,7 @@ class HTTPRequest(object):
         self.max_redirects = max_redirects
         self.user_agent = user_agent
         self.use_gzip = use_gzip
-        if os.name == 'java':
+        if os.name == 'java' or sys.platform == 'cli':
             # jython's zlib doesn't understand the magic to decode gzip
             # headers as in cpython.
             self.use_gzip = False

@@ -1,4 +1,5 @@
 from wsgiref.validate import validator
+import sys
 
 from tornado.testing import AsyncHTTPTestCase, LogTrapTestCase
 from tornado.util import b
@@ -56,3 +57,5 @@ class WSGIConnectionTest(HTTPConnectionTest):
         return WSGIContainer(validator(WSGIApplication(self.get_handlers())))
 
 del HTTPConnectionTest
+
+if sys.platform == 'cli': del WSGIConnectionTest

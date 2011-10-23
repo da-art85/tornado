@@ -104,6 +104,7 @@ class AsyncTestCase(unittest.TestCase):
             # set FD_CLOEXEC on its file descriptors)
             self.io_loop.close(all_fds=True)
         super(AsyncTestCase, self).tearDown()
+        del self.io_loop
 
     def get_new_ioloop(self):
         '''Creates a new IOLoop for this test.  May be overridden in
@@ -254,6 +255,12 @@ class AsyncHTTPTestCase(AsyncTestCase):
         self.http_server.stop()
         self.http_client.close()
         super(AsyncHTTPTestCase, self).tearDown()
+        # in ironpython, you can't close files by fd (as in IOLoop.close);
+        # files are only closed when the object is gc'd.  Clear these
+        # references to allow that GC to happen sooner.
+        del self.http_server
+        del self.http_client
+        del self._app
 
 class LogTrapTestCase(unittest.TestCase):
     """A test case that captures and discards all logging output

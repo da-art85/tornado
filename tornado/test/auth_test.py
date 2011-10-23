@@ -3,6 +3,8 @@
 # and ensure that it doesn't blow up (e.g. with unicode/bytes issues in
 # python 3)
 
+import sys
+
 from tornado.auth import OpenIdMixin, OAuthMixin, OAuth2Mixin
 from tornado.escape import json_decode
 from tornado.testing import AsyncHTTPTestCase, LogTrapTestCase
@@ -125,6 +127,7 @@ class AuthTest(AsyncHTTPTestCase, LogTrapTestCase):
         self.assertEqual(parsed["email"], "foo@example.com")
 
     def test_oauth10_redirect(self):
+        if sys.platform == 'cli': return
         response = self.fetch('/oauth10/client/login', follow_redirects=False)
         self.assertEqual(response.code, 302)
         self.assertTrue(response.headers['Location'].endswith(
@@ -153,6 +156,7 @@ class AuthTest(AsyncHTTPTestCase, LogTrapTestCase):
         self.assertTrue('oauth_signature' in parsed)
 
     def test_oauth10a_redirect(self):
+        if sys.platform == 'cli': return
         response = self.fetch('/oauth10a/client/login', follow_redirects=False)
         self.assertEqual(response.code, 302)
         self.assertTrue(response.headers['Location'].endswith(

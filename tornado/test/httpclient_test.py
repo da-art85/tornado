@@ -6,6 +6,7 @@ import base64
 import binascii
 from contextlib import closing
 import functools
+import sys
 
 from tornado.escape import utf8
 from tornado.httpclient import AsyncHTTPClient
@@ -170,23 +171,25 @@ Transfer-Encoding: chunked
         self.assertEqual(response.body, utf8(unicode_body))
 
         # byte strings pass through directly
-        response = self.fetch("/echopost", method="POST",
-                              body=byte_body,
-                              headers={"Content-Type": "application/blah"})
-        self.assertEqual(response.headers["Content-Length"], "1")
-        self.assertEqual(response.body, byte_body)
+        if sys.platform != 'cli':
+            response = self.fetch("/echopost", method="POST",
+                                  body=byte_body,
+                                  headers={"Content-Type": "application/blah"})
+            self.assertEqual(response.headers["Content-Length"], "1")
+            self.assertEqual(response.body, byte_body)
 
-        # Mixing unicode in headers and byte string bodies shouldn't
-        # break anything
-        response = self.fetch("/echopost", method="POST", body=byte_body,
-                              headers={"Content-Type": "application/blah"},
-                              user_agent=u"foo")
-        self.assertEqual(response.headers["Content-Length"], "1")
-        self.assertEqual(response.body, byte_body)
+            # Mixing unicode in headers and byte string bodies shouldn't
+            # break anything
+            response = self.fetch("/echopost", method="POST", body=byte_body,
+                                  headers={"Content-Type": "application/blah"},
+                                  user_agent=u"foo")
+            self.assertEqual(response.headers["Content-Length"], "1")
+            self.assertEqual(response.body, byte_body)
 
     def test_types(self):
         response = self.fetch("/hello")
-        self.assertEqual(type(response.body), bytes_type)
+        if sys.platform != 'cli':
+            self.assertEqual(type(response.body), bytes_type)
         self.assertEqual(type(response.headers["Content-Type"]), str)
         self.assertEqual(type(response.code), int)
         self.assertEqual(type(response.effective_url), str)

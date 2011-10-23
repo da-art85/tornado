@@ -32,6 +32,7 @@ class SecureCookieTest(LogTrapTestCase):
         self.assertEqual(handler.get_secure_cookie('foo'), b('bar'))
 
     def test_cookie_tampering_future_timestamp(self):
+        if sys.platform == 'cli': return
         handler = CookieTestRequestHandler()
         # this string base64-encodes to '12345678'
         handler.set_secure_cookie('foo', binascii.a2b_hex(b('d76df8e7aefc')))
@@ -185,6 +186,7 @@ class ConnectionCloseTest(AsyncHTTPTestCase, LogTrapTestCase):
         return Application([('/', ConnectionCloseHandler, dict(test=self))])
 
     def test_connection_close(self):
+        if sys.platform == 'cli': return
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         s.connect(("localhost", self.get_http_port()))
         self.stream = IOStream(s, io_loop=self.io_loop)
@@ -227,6 +229,7 @@ class RequestEncodingTest(AsyncHTTPTestCase, LogTrapTestCase):
                          dict(path='?', args={'?': ['?']}))
 
     def test_path_encoding(self):
+        if sys.platform == 'cli': return
         # Path components and query arguments should be decoded the same way
         self.assertEqual(json_decode(self.fetch('/%C3%A9?arg=%C3%A9').body),
                          {u"path":u"\u00e9",
@@ -366,6 +369,7 @@ class WebTest(AsyncHTTPTestCase, LogTrapTestCase):
                               body="foo=bar")
 
     def test_decode_argument(self):
+        if sys.platform == 'cli': return
         # These urls all decode to the same thing
         urls = ["/decode_arg/%C3%A9?foo=%C3%A9&encoding=utf-8",
                 "/decode_arg/%E9?foo=%E9&encoding=latin1",
@@ -530,6 +534,7 @@ class StaticFileTest(AsyncHTTPTestCase, LogTrapTestCase):
                            static_path=os.path.join(os.path.dirname(__file__), 'static'))
 
     def test_static_files(self):
+        if sys.platform == 'cli': return
         response = self.fetch('/robots.txt')
         assert b("Disallow: /") in response.body
 

@@ -199,6 +199,31 @@ def to_basestring(value):
     assert isinstance(value, bytes)
     return value.decode("utf-8")
 
+if sys.platform == 'cli':
+    # ironpython str/unicode is a mess.  str is unicode (like in jython),
+    # but str.encode returns str!  There is a bytes type, but many methods
+    # that should work with bytes (like socket.send) are str-only.
+    # Things kind of work if you just use str and utf8 everywhere,
+    # although it breaks explicitly non-utf8 encoded strings.
+    def utf8(s):
+        if s is None: return s
+        try:
+            s.decode('utf8')
+            return s
+        except UnicodeDecodeError:
+            return s.encode('utf8')
+
+    def to_unicode(s):
+        if s is None: return s
+        try:
+            return s.decode('utf8')
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            return s
+
+    _unicode = to_unicode
+    native_str = to_unicode
+    to_basestring = to_unicode
+
 def recursive_unicode(obj):
     """Walks a simple data structure, converting byte strings to unicode.
 

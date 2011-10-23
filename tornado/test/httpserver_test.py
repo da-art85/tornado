@@ -79,7 +79,7 @@ class SSLTest(AsyncHTTPTestCase, LogTrapTestCase):
         response = self.wait()
         self.assertEqual(response.code, 599)
 
-if ssl is None:
+if ssl is None or sys.platform == 'cli':
     del SSLTest
 
 class MultipartTestHandler(RequestHandler):
@@ -122,6 +122,7 @@ class HTTPConnectionTest(AsyncHTTPTestCase, LogTrapTestCase):
         return response
 
     def test_multipart_form(self):
+        if sys.platform == 'cli': return
         # Encodings here are tricky:  Headers are latin1, bodies can be
         # anything (we use utf8 by default).
         response = self.raw_fetch([

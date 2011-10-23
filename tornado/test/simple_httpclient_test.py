@@ -5,6 +5,7 @@ import gzip
 import logging
 import os
 import socket
+import sys
 
 from tornado.ioloop import IOLoop
 from tornado.simple_httpclient import SimpleAsyncHTTPClient, _DEFAULT_CA_CERTS
@@ -101,6 +102,7 @@ class SimpleHTTPClientTestCase(AsyncHTTPTestCase, LogTrapTestCase):
         self.assertEqual(len(self.triggers), 0)
 
     def test_redirect_connection_limit(self):
+        if sys.platform == 'cli': return
         # following redirects should not consume additional connections
         client = SimpleAsyncHTTPClient(self.io_loop, max_clients=1,
                                        force_instance=True)
@@ -113,7 +115,7 @@ class SimpleHTTPClientTestCase(AsyncHTTPTestCase, LogTrapTestCase):
         open(_DEFAULT_CA_CERTS).close()
 
     def test_gzip(self):
-        if os.name == 'java':
+        if os.name == 'java' or sys.platform == 'cli':
             # jython's zlib module doesn't work with our gzip code
             return
         # All the tests in this file should be using gzip, but this test
@@ -145,6 +147,7 @@ class SimpleHTTPClientTestCase(AsyncHTTPTestCase, LogTrapTestCase):
         self.assertEqual(str(response.error), "HTTP 599: Timeout")
 
     def test_ipv6(self):
+        if sys.platform == 'cli': return
         if not socket.has_ipv6:
             # python compiled without ipv6 support, so skip this test
             return
