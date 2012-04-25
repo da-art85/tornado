@@ -334,6 +334,8 @@ class XHeaderTest(HandlerBaseTestCase):
         return dict(xheaders=True)
 
     def test_ip_headers(self):
+        if os.name == 'java':
+            return
         self.assertEqual(self.fetch_json("/")["remote_ip"],
                          "127.0.0.1")
 

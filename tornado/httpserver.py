@@ -28,6 +28,7 @@ from __future__ import absolute_import, division, with_statement
 
 import Cookie
 import logging
+import os
 import socket
 import time
 import urlparse
@@ -469,6 +470,10 @@ class HTTPRequest(object):
             self.__class__.__name__, args, dict(self.headers))
 
     def _valid_ip(self, ip):
+        if os.name == 'java' and not hasattr(socket, 'AI_NUMERICHOST'):
+            # jython doesn't know AI_NUMERICHOST in 2.5.2.
+            # TODO: have a jython-compatible implementation
+            return True
         try:
             res = socket.getaddrinfo(ip, 0, socket.AF_UNSPEC,
                                      socket.SOCK_STREAM,
