@@ -1,6 +1,8 @@
 # NOTE: win32 support is currently experimental, and not recommended
 # for production use.
 
+
+from __future__ import absolute_import, division, with_statement
 import ctypes
 import ctypes.wintypes
 import socket
@@ -88,7 +90,8 @@ class Waker(interface.Waker):
         try:
             while True:
                 result = self.reader.recv(1024)
-                if not result: break
+                if not result:
+                    break
         except IOError:
             pass
 

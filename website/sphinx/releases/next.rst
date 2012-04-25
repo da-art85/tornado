@@ -1,122 +1,39 @@
-What's new in the next release of Tornado
+What's new in the next version of Tornado
 =========================================
 
 In progress
 -----------
 
-Security fixes
-~~~~~~~~~~~~~~
-
-* `tornado.simple_httpclient` now disables SSLv2 in all cases.  Previously
-  SSLv2 would be allowed if the Python interpreter was linked against a
-  pre-1.0 version of OpenSSL.
-
-Backwards-incompatible changes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-* `tornado.process.fork_processes` now raises `SystemExit` if all child
-  processes exit cleanly rather than returning ``None``.  The old behavior
-  was surprising and inconsistent with most of the documented examples
-  of this function (which did not check the return value).
-* On Python 2.6, `tornado.simple_httpclient` only supports SSLv3.  This
-  is because Python 2.6 does not expose a way to support both SSLv3 and TLSv1
-  without also supporting the insecure SSLv2.
-* `tornado.websocket` no longer supports the older "draft 76" version
-  of the websocket protocol by default, although this version can
-  be enabled by overriding `tornado.websocket.WebSocketHandler.allow_draft76`.
-
-``tornado.httpclient``
-~~~~~~~~~~~~~~~~~~~~~~
-
-* `SimpleAsyncHTTPClient` no longer hangs on ``HEAD`` requests,
-  responses with no content, or empty ``POST``/``PUT`` response bodies.
-* `SimpleAsyncHTTPClient` now supports 303 and 307 redirect codes.
-* `tornado.curl_httpclient` now accepts non-integer timeouts.
-* `tornado.curl_httpclient` now supports basic authentication with an
-  empty password.
-
-``tornado.httpserver``
-~~~~~~~~~~~~~~~~~~~~~~
-
-* `HTTPServer` with ``xheaders=True`` will no longer accept
-  ``X-Real-IP`` headers that don't look like valid IP addresses.
-* `HTTPServer` now treats the ``Connection`` request header as
-  case-insensitive.
-
-``tornado.ioloop`` and ``tornado.iostream``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-* `IOStream.write` now works correctly when given an empty string.
-* `IOStream.read_until` (and ``read_until_regex``) now perform better
-  when there is a lot of buffered data, which improves peformance of
-  `SimpleAsyncHTTPClient` when downloading files with lots of
-  chunks.
-* `SSLIOStream` now works correctly when ``ssl_version`` is set to
-  a value other than ``SSLv23``.
-* Idle ``IOLoops`` no longer wake up several times a second.
-* `tornado.ioloop.PeriodicCallback` no longer triggers duplicate callbacks
-  when stopped and started repeatedly.
-
-``tornado.template``
-~~~~~~~~~~~~~~~~~~~~
-
-* Exceptions in template code will now show better stack traces that
-  reference lines from the original template file.
-* ``{#`` and ``#}`` can now be used for comments (and unlike the old
-  ``{% comment %}`` directive, these can wrap other template directives).
-* Template directives may now span multiple lines.
-
-``tornado.web``
-~~~~~~~~~~~~~~~
-
-* Now behaves better when given malformed ``Cookie`` headers
-* `RequestHandler.redirect` now has a ``status`` argument to send
-  status codes other than 301 and 302.
-* New method `RequestHandler.on_finish` may be overridden for post-request
-  processing (as a counterpart to `RequestHandler.prepare`)
-* `StaticFileHandler` now outputs ``Content-Length`` and ``Etag`` headers
-  on ``HEAD`` requests.
-* `StaticFileHandler` now has overridable ``get_version`` and
-  ``parse_url_path`` methods for use in subclasses.
-* `RequestHandler.static_url` now takes an ``include_host`` parameter
-  (in addition to the old support for the `RequestHandler.include_host`
-  attribute).
-
-``tornado.websocket``
-~~~~~~~~~~~~~~~~~~~~~
-
-* Updated to support the latest version of the protocol, as finalized
-  in RFC 6455.
-* Many bugs were fixed in all supported protocol versions.
-* `tornado.websocket` no longer supports the older "draft 76" version
-  of the websocket protocol by default, although this version can
-  be enabled by overriding `tornado.websocket.WebSocketHandler.allow_draft76`.
-* `WebSocketHandler.write_message` now accepts a ``binary`` argument
-  to send binary messages.
-* Subprotocols (i.e. the ``Sec-WebSocket-Protocol`` header) are now supported;
-  see the `WebSocketHandler.select_subprotocol` method for details.
-* `WebSocketHandler.get_websocket_scheme` can be used to select the
-  appropriate url scheme (``ws://`` or ``wss://``) in cases where
-  `HTTPRequest.protocol` is not set correctly.
-
-Other modules
-~~~~~~~~~~~~~
-
-* `tornado.auth.TwitterMixin.authenticate_redirect` now takes a
-  ``callback_uri`` parameter.
-* `tornado.auth.TwitterMixin.twitter_request` now accepts both URLs and
-  partial paths (complete URLs are useful for the search API which follows
-  different patterns).
-* Exception handling in `tornado.gen` has been improved.  It is now possible
-  to catch exceptions thrown by a ``Task``.
-* `tornado.netutil.bind_sockets` now works when ``getaddrinfo`` returns
-  duplicate addresses.
-* `tornado.platform.twisted` compatibility has been significantly improved.
-  Twisted version 11.1.0 is now supported in addition to 11.0.0.
-* `tornado.process.fork_processes` correctly reseeds the `random` module
-  even when `os.urandom` is not implemented.
-* `tornado.testing.main` supports a new flag ``--exception_on_interrupt``,
-  which can be set to false to make ``Ctrl-C`` kill the process more
-  reliably (at the expense of stack traces when it does so).
-* `tornado.version_info` is now a four-tuple so official releases can be
-  distinguished from development branches.
+* `tornado.simple_httpclient` is better about closing its sockets
+  instead of leaving them for garbage collection.
+* Repeated calls to `RequestHandler.set_cookie` with the same name now
+  overwrite the previous cookie instead of producing additional copies.
+* `tornado.simple_httpclient` correctly verifies SSL certificates for
+  URLs containing IPv6 literals (This bug affected Python 2.5 and 2.6).
+* Fixed a bug on python versions before 2.6.5 when `URLSpec` regexes
+  are constructed from unicode strings and keyword arguments are extracted.
+* `tornado.curl_httpclient` now supports client SSL certificates (using
+  the same ``client_cert`` and ``client_key`` arguments as
+  `tornado.simple_httpclient`)
+* `tornado.httpclient.HTTPClient` now supports the same constructor
+  keyword arguments as `AsyncHTTPClient`.
+* `tornado.locale.get_supported_locales` no longer takes a meaningless
+  ``cls`` argument.
+* The ``reverse_url`` function in the template namespace now comes from
+  the `RequestHandler` rather than the `Application`.  (Unless overridden,
+  `RequestHandler.reverse_url` is just an alias for the `Application`
+  method).
+* The ``Etag`` header is now returned on 304 responses to an ``If-None-Match``
+  request, improving compatibility with some caches.
+* `tornado.simple_httpclient` no longer includes basic auth credentials
+  in the ``Host`` header when those credentials are extracted from the URL.
+* `tornado.testing.AsyncTestCase.wait` now resets its timeout on each call.
+* `tornado.simple_httpclient` no longer modifies the caller-supplied header
+  dictionary, which caused problems when following redirects.
+* `tornado.web.addslash` and ``removeslash`` decorators now send permanent
+  redirects (301) instead of temporary (302).
+* `tornado.wsgi.WSGIApplication` now parses arguments correctly on Python 3.
+* `tornado.auth.FacebookGraphMixin` no longer sends ``post_args`` redundantly
+  in the url.
+* `tornado.iostream.IOStream.read_until` and ``read_until_regex`` are much
+  faster with large input.

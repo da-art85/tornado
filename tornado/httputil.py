@@ -16,11 +16,14 @@
 
 """HTTP utility code shared by clients and servers."""
 
+from __future__ import absolute_import, division, with_statement
+
 import logging
 import urllib
 import re
 
 from tornado.util import b, ObjectDict
+
 
 class HTTPHeaders(dict):
     """A dictionary that maintains Http-Header-Case for all keys.
@@ -55,7 +58,14 @@ class HTTPHeaders(dict):
         dict.__init__(self)
         self._as_list = {}
         self._last_key = None
-        self.update(*args, **kwargs)
+        if (len(args) == 1 and len(kwargs) == 0 and
+            isinstance(args[0], HTTPHeaders)):
+            # Copy constructor
+            for k,v in args[0].get_all():
+                self.add(k,v)
+        else:
+            # Dict-style initialization
+            self.update(*args, **kwargs)
 
     # new public methods
 
@@ -172,7 +182,8 @@ def url_concat(url, args):
     >>> url_concat("http://example.com/foo?a=b", dict(c="d"))
     'http://example.com/foo?a=b&c=d'
     """
-    if not args: return url
+    if not args:
+        return url
     if url[-1] not in ('?', '&'):
         url += '&' if ('?' in url) else '?'
     return url + urllib.urlencode(args)
@@ -210,7 +221,8 @@ def parse_multipart_form_data(boundary, data, arguments, files):
         footer_length = len(boundary) + 4
     parts = data[:-footer_length].split(b("--") + boundary + b("\r\n"))
     for part in parts:
-        if not part: continue
+        if not part:
+            continue
         eoh = part.find(b("\r\n\r\n"))
         if eoh == -1:
             logging.warning("multipart/form-data missing headers")
@@ -250,6 +262,7 @@ def _parseparam(s):
         yield f.strip()
         s = s[end:]
 
+
 def _parse_header(line):
     """Parse a Content-type like header.
 
@@ -263,7 +276,7 @@ def _parse_header(line):
         i = p.find('=')
         if i >= 0:
             name = p[:i].strip().lower()
-            value = p[i+1:].strip()
+            value = p[i + 1:].strip()
             if len(value) >= 2 and value[0] == value[-1] == '"':
                 value = value[1:-1]
                 value = value.replace('\\\\', '\\').replace('\\"', '"')
@@ -274,7 +287,3 @@ def _parse_header(line):
 def doctests():
     import doctest
     return doctest.DocTestSuite()
-
-if __name__ == "__main__":
-    import doctest
-    doctest.testmod()

@@ -1,3 +1,5 @@
+from __future__ import absolute_import, division, with_statement
+from tornado import gen
 from tornado.escape import json_decode, utf8, to_unicode, recursive_unicode, native_str
 from tornado.iostream import IOStream
 from tornado.template import DictLoader
@@ -12,6 +14,7 @@ import re
 import socket
 import sys
 
+
 class CookieTestRequestHandler(RequestHandler):
     # stub out enough methods to make the secure_cookie functions work
     def __init__(self):
@@ -24,6 +27,7 @@ class CookieTestRequestHandler(RequestHandler):
 
     def set_cookie(self, name, value, expires_days=None):
         self._cookies[name] = value
+
 
 class SecureCookieTest(LogTrapTestCase):
     def test_round_trip(self):
@@ -56,6 +60,7 @@ class SecureCookieTest(LogTrapTestCase):
         # it gets rejected
         assert handler.get_secure_cookie('foo') is None
 
+
 class CookieTest(AsyncHTTPTestCase, LogTrapTestCase):
     def get_app(self):
         class SetCookieHandler(RequestHandler):
@@ -83,20 +88,29 @@ class CookieTest(AsyncHTTPTestCase, LogTrapTestCase):
                 self.set_cookie("semicolon", "a;b")
                 self.set_cookie("quote", 'a"b')
 
+        class SetCookieOverwriteHandler(RequestHandler):
+            def get(self):
+                self.set_cookie("a", "b", domain="example.com")
+                self.set_cookie("c", "d" ,domain="example.com")
+                # A second call with the same name clobbers the first.
+                # Attributes from the first call are not carried over.
+                self.set_cookie("a", "e")
 
         return Application([
                 ("/set", SetCookieHandler),
                 ("/get", GetCookieHandler),
                 ("/set_domain", SetCookieDomainHandler),
                 ("/special_char", SetCookieSpecialCharHandler),
+                ("/set_overwrite", SetCookieOverwriteHandler),
                 ])
 
     def test_set_cookie(self):
         response = self.fetch("/set")
-        self.assertEqual(response.headers.get_list("Set-Cookie"),
-                         ["str=asdf; Path=/",
+        self.assertEqual(sorted(response.headers.get_list("Set-Cookie")),
+                         ["bytes=zxcv; Path=/",
+                          "str=asdf; Path=/",
                           "unicode=qwer; Path=/",
-                          "bytes=zxcv; Path=/"])
+                          ])
 
     def test_get_cookie(self):
         response = self.fetch("/get", headers={"Cookie": "foo=bar"})
@@ -115,14 +129,14 @@ class CookieTest(AsyncHTTPTestCase, LogTrapTestCase):
 
     def test_cookie_special_char(self):
         response = self.fetch("/special_char")
-        headers = response.headers.get_list("Set-Cookie")
+        headers = sorted(response.headers.get_list("Set-Cookie"))
         self.assertEqual(len(headers), 3)
         self.assertEqual(headers[0], 'equals="a=b"; Path=/')
+        self.assertEqual(headers[1], 'quote="a\\"b"; Path=/')
         # python 2.7 octal-escapes the semicolon; older versions leave it alone
-        self.assertTrue(headers[1] in ('semicolon="a;b"; Path=/',
+        self.assertTrue(headers[2] in ('semicolon="a;b"; Path=/',
                                        'semicolon="a\\073b"; Path=/'),
-                        headers[1])
-        self.assertEqual(headers[2], 'quote="a\\"b"; Path=/')
+                        headers[2])
 
         data = [('foo=a=b', 'a=b'),
                 ('foo="a=b"', 'a=b'),
@@ -136,6 +150,13 @@ class CookieTest(AsyncHTTPTestCase, LogTrapTestCase):
             response = self.fetch("/get", headers={"Cookie": header})
             self.assertEqual(response.body, utf8(expected))
 
+    def test_set_cookie_overwrite(self):
+        response = self.fetch("/set_overwrite")
+        headers = response.headers.get_list("Set-Cookie")
+        self.assertEqual(sorted(headers),
+                         ["a=e; Path=/", "c=d; Domain=example.com; Path=/"])
+
+
 class AuthRedirectRequestHandler(RequestHandler):
     def initialize(self, login_url):
         self.login_url = login_url
@@ -147,6 +168,7 @@ class AuthRedirectRequestHandler(RequestHandler):
     def get(self):
         # we'll never actually get here because the test doesn't follow redirects
         self.send_error(500)
+
 
 class AuthRedirectTest(AsyncHTTPTestCase, LogTrapTestCase):
     def get_app(self):
@@ -183,6 +205,7 @@ class ConnectionCloseHandler(RequestHandler):
     def on_connection_close(self):
         self.test.on_connection_close()
 
+
 class ConnectionCloseTest(AsyncHTTPTestCase, LogTrapTestCase):
     def get_app(self):
         return Application([('/', ConnectionCloseHandler, dict(test=self))])
@@ -202,6 +225,7 @@ class ConnectionCloseTest(AsyncHTTPTestCase, LogTrapTestCase):
         logging.info('connection closed')
         self.stop()
 
+
 class EchoHandler(RequestHandler):
     def get(self, path):
         # Type checks: web.py interfaces convert argument values to
@@ -218,6 +242,7 @@ class EchoHandler(RequestHandler):
         self.write(dict(path=path,
                         args=recursive_unicode(self.request.arguments)))
 
+
 class RequestEncodingTest(AsyncHTTPTestCase, LogTrapTestCase):
     def get_app(self):
         return Application([("/(.*)", EchoHandler)])
@@ -232,8 +257,9 @@ class RequestEncodingTest(AsyncHTTPTestCase, LogTrapTestCase):
     def test_path_encoding(self):
         # Path components and query arguments should be decoded the same way
         self.assertEqual(json_decode(self.fetch('/%C3%A9?arg=%C3%A9').body),
-                         {u"path":u"\u00e9",
+                         {u"path": u"\u00e9",
                           u"args": {u"arg": [u"\u00e9"]}})
+
 
 class TypeCheckHandler(RequestHandler):
     def prepare(self):
@@ -270,6 +296,7 @@ class TypeCheckHandler(RequestHandler):
             self.errors[name] = "expected %s, got %s" % (expected_type,
                                                          actual_type)
 
+
 class DecodeArgHandler(RequestHandler):
     def decode_argument(self, value, name=None):
         assert type(value) == bytes_type, repr(value)
@@ -290,17 +317,21 @@ class DecodeArgHandler(RequestHandler):
                     'query': describe(self.get_argument("foo")),
                     })
 
+
 class LinkifyHandler(RequestHandler):
     def get(self):
         self.render("linkify.html", message="http://example.com")
 
+
 class UIModuleResourceHandler(RequestHandler):
     def get(self):
-        self.render("page.html", entries=[1,2])
+        self.render("page.html", entries=[1, 2])
+
 
 class OptionalPathHandler(RequestHandler):
     def get(self, path):
         self.write({"path": path})
+
 
 class FlowControlHandler(RequestHandler):
     # These writes are too small to demonstrate real flow control,
@@ -318,12 +349,14 @@ class FlowControlHandler(RequestHandler):
         self.write("3")
         self.finish()
 
+
 class MultiHeaderHandler(RequestHandler):
     def get(self):
         self.set_header("x-overwrite", "1")
         self.set_header("x-overwrite", 2)
         self.add_header("x-multi", 3)
         self.add_header("x-multi", "4")
+
 
 class RedirectHandler(RequestHandler):
     def get(self):
@@ -333,6 +366,29 @@ class RedirectHandler(RequestHandler):
             self.redirect('/', status=int(self.get_argument('status')))
         else:
             raise Exception("didn't get permanent or status arguments")
+
+class EmptyFlushCallbackHandler(RequestHandler):
+    @gen.engine
+    @asynchronous
+    def get(self):
+        # Ensure that the flush callback is run whether or not there
+        # was any output.
+        yield gen.Task(self.flush)  # "empty" flush, but writes headers
+        yield gen.Task(self.flush)  # empty flush
+        self.write("o")
+        yield gen.Task(self.flush)  # flushes the "o"
+        yield gen.Task(self.flush)  # empty flush
+        self.finish("k")
+
+
+class HeaderInjectionHandler(RequestHandler):
+    def get(self):
+        try:
+            self.set_header("X-Foo", "foo\r\nX-Bar: baz")
+            raise Exception("Didn't get expected exception")
+        except ValueError, e:
+            assert "Unsafe header value" in str(e)
+            self.finish(b("ok"))
 
 
 class WebTest(AsyncHTTPTestCase, LogTrapTestCase):
@@ -359,6 +415,8 @@ class WebTest(AsyncHTTPTestCase, LogTrapTestCase):
             url("/flow_control", FlowControlHandler),
             url("/multi_header", MultiHeaderHandler),
             url("/redirect", RedirectHandler),
+            url("/empty_flush", EmptyFlushCallbackHandler),
+            url("/header_injection", HeaderInjectionHandler),
             ]
         return Application(urls,
                            template_loader=loader,
@@ -452,6 +510,14 @@ js_embed()
         response = self.fetch("/redirect?status=307", follow_redirects=False)
         self.assertEqual(response.code, 307)
 
+    def test_empty_flush(self):
+        response = self.fetch("/empty_flush")
+        self.assertEqual(response.body, b("ok"))
+
+    def test_header_injection(self):
+        response = self.fetch("/header_injection")
+        self.assertEqual(response.body, b("ok"))
+
 
 class ErrorResponseTest(AsyncHTTPTestCase, LogTrapTestCase):
     def get_app(self):
@@ -459,14 +525,14 @@ class ErrorResponseTest(AsyncHTTPTestCase, LogTrapTestCase):
             def get(self):
                 if self.get_argument("status", None):
                     raise HTTPError(int(self.get_argument("status")))
-                1/0
+                1 / 0
 
         class WriteErrorHandler(RequestHandler):
             def get(self):
                 if self.get_argument("status", None):
                     self.send_error(int(self.get_argument("status")))
                 else:
-                    1/0
+                    1 / 0
 
             def write_error(self, status_code, **kwargs):
                 self.set_header("Content-Type", "text/plain")
@@ -480,7 +546,7 @@ class ErrorResponseTest(AsyncHTTPTestCase, LogTrapTestCase):
                 if self.get_argument("status", None):
                     self.send_error(int(self.get_argument("status")))
                 else:
-                    1/0
+                    1 / 0
 
             def get_error_html(self, status_code, **kwargs):
                 self.set_header("Content-Type", "text/plain")
@@ -491,11 +557,10 @@ class ErrorResponseTest(AsyncHTTPTestCase, LogTrapTestCase):
 
         class FailedWriteErrorHandler(RequestHandler):
             def get(self):
-                1/0
+                1 / 0
 
             def write_error(self, status_code, **kwargs):
                 raise Exception("exception in write_error")
-
 
         return Application([
                 url("/default", DefaultHandler),
@@ -536,6 +601,7 @@ class ErrorResponseTest(AsyncHTTPTestCase, LogTrapTestCase):
         self.assertEqual(response.code, 500)
         self.assertEqual(b(""), response.body)
 
+
 class StaticFileTest(AsyncHTTPTestCase, LogTrapTestCase):
     def get_app(self):
         class StaticUrlHandler(RequestHandler):
@@ -544,6 +610,7 @@ class StaticFileTest(AsyncHTTPTestCase, LogTrapTestCase):
 
         class AbsoluteStaticUrlHandler(RequestHandler):
             include_host = True
+
             def get(self, path):
                 self.write(self.static_url(path))
 
@@ -598,6 +665,7 @@ class StaticFileTest(AsyncHTTPTestCase, LogTrapTestCase):
         response = self.fetch(path % int(include_host))
         self.assertEqual(response.body, utf8(str(True)))
 
+
 class CustomStaticFileTest(AsyncHTTPTestCase, LogTrapTestCase):
     def get_app(self):
         class MyStaticFileHandler(StaticFileHandler):
@@ -636,3 +704,19 @@ class CustomStaticFileTest(AsyncHTTPTestCase, LogTrapTestCase):
     def test_static_url(self):
         response = self.fetch("/static_url/foo.txt")
         self.assertEqual(response.body, b("/static/foo.42.txt"))
+
+class NamedURLSpecGroupsTest(AsyncHTTPTestCase, LogTrapTestCase):
+    def get_app(self):
+        class EchoHandler(RequestHandler):
+            def get(self, path):
+                self.write(path)
+
+        return Application([("/str/(?P<path>.*)", EchoHandler),
+                            (u"/unicode/(?P<path>.*)", EchoHandler)])
+
+    def test_named_urlspec_groups(self):
+        response = self.fetch("/str/foo")
+        self.assertEqual(response.body, b("foo"))
+
+        response = self.fetch("/unicode/bar")
+        self.assertEqual(response.body, b("bar"))

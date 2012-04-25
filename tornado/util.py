@@ -1,5 +1,8 @@
 """Miscellaneous utility functions."""
 
+from __future__ import absolute_import, division, with_statement
+
+
 class ObjectDict(dict):
     """Makes a dictionary behave like an object."""
     def __getattr__(self, name):
@@ -41,6 +44,7 @@ else:
     def b(s):
         return s
     bytes_type = str
+
 
 def doctests():
     import doctest

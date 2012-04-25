@@ -24,6 +24,8 @@ This module also defines the `HTTPRequest` class which is exposed via
 `tornado.web.RequestHandler.request`.
 """
 
+from __future__ import absolute_import, division, with_statement
+
 import Cookie
 import logging
 import socket
@@ -38,9 +40,10 @@ from tornado import stack_context
 from tornado.util import b, bytes_type
 
 try:
-    import ssl # Python 2.6+
+    import ssl  # Python 2.6+
 except ImportError:
     ssl = None
+
 
 class HTTPServer(TCPServer):
     r"""A non-blocking, single-threaded HTTP server.
@@ -103,7 +106,7 @@ class HTTPServer(TCPServer):
        In many cases, `tornado.web.Application.listen` can be used to avoid
        the need to explicitly create the `HTTPServer`.
 
-    2. `~tornado.netutil.TCPServer.bind`/`~tornado.netutil.TCPServer.start`: 
+    2. `~tornado.netutil.TCPServer.bind`/`~tornado.netutil.TCPServer.start`:
        simple multi-process::
 
             server = HTTPServer(app)
@@ -143,9 +146,11 @@ class HTTPServer(TCPServer):
         HTTPConnection(stream, address, self.request_callback,
                        self.no_keep_alive, self.xheaders)
 
+
 class _BadRequestException(Exception):
     """Exception class for malformed HTTP requests."""
     pass
+
 
 class HTTPConnection(object):
     """Handles a connection to an HTTP client, executing HTTP requests.
@@ -189,7 +194,7 @@ class HTTPConnection(object):
         if self._write_callback is not None:
             callback = self._write_callback
             self._write_callback = None
-            callback()            
+            callback()
         # _on_write_complete is enqueued on the IOLoop whenever the
         # IOStream's write buffer becomes empty, but it's possible for
         # another callback that runs on the IOLoop before it to
@@ -336,8 +341,8 @@ class HTTPRequest(object):
        GET/POST arguments are available in the arguments property, which
        maps arguments names to lists of values (to support multiple values
        for individual names). Names are of type `str`, while arguments
-       are byte strings.  Note that this is different from 
-       `RequestHandler.get_argument`, which returns argument values as 
+       are byte strings.  Note that this is different from
+       `RequestHandler.get_argument`, which returns argument values as
        unicode strings.
 
     .. attribute:: files
@@ -375,7 +380,7 @@ class HTTPRequest(object):
             self.remote_ip = remote_ip
             if protocol:
                 self.protocol = protocol
-            elif connection and isinstance(connection.stream, 
+            elif connection and isinstance(connection.stream,
                                            iostream.SSLIOStream):
                 self.protocol = "https"
             else:
@@ -393,7 +398,8 @@ class HTTPRequest(object):
         self.arguments = {}
         for name, values in arguments.iteritems():
             values = [v for v in values if v]
-            if values: self.arguments[name] = values
+            if values:
+                self.arguments[name] = values
 
     def supports_http_1_1(self):
         """Returns True if this request supports HTTP/1.1 semantics"""
@@ -473,4 +479,3 @@ class HTTPRequest(object):
                 return False
             raise
         return True
-
