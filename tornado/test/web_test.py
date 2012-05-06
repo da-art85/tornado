@@ -269,7 +269,7 @@ class RequestEncodingTest(AsyncHTTPTestCase, LogTrapTestCase):
                           u"args": {u"arg": [u"\u00e9"]}})
 
     def test_path_encoding(self):
-        self.assertEqual(self.fetch(u'/\u00e9').body, "/%C3%A9")
+        self.assertEqual(self.fetch(u'/\u00e9').body, b("/%C3%A9"))
 
 
 class TypeCheckHandler(RequestHandler):
