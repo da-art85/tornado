@@ -37,8 +37,8 @@ class Waker(interface.Waker):
             # for hideous details.
             a = socket.socket()
             a.bind(("127.0.0.1", 0))
-            connect_address = a.getsockname()  # assigned (host, port) pair
             a.listen(1)
+            connect_address = a.getsockname()  # assigned (host, port) pair
             try:
                 self.writer.connect(connect_address)
                 break    # success
