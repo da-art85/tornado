@@ -161,8 +161,9 @@ class HTTPConnection(object):
     def __init__(self, stream, address, request_callback, no_keep_alive=False,
                  xheaders=False):
         self.stream = stream
-        if self.stream.socket.family not in (socket.AF_INET, socket.AF_INET6):
-            # Unix (or other) socket; fake the remote address
+        if getattr(self.stream.socket, 'family', None) not in (socket.AF_INET, socket.AF_INET6):
+            # Unix (or other) socket; fake the remote address.
+            # jython 2.5.2 is missing the socket.family attribute
             address = ('0.0.0.0', 0)
         self.address = address
         self.request_callback = request_callback

@@ -479,7 +479,15 @@ class IOStream(object):
         return False
 
     def _handle_connect(self):
-        err = self.socket.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
+        try:
+            err = self.socket.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
+        except socket.error, e:
+            if e.args[0] == errno.ENOPROTOOPT:
+                # jython doesn't support getting error status with SO_ERROR,
+                # so assume that if the socket became writeable it worked.
+                err = 0
+            else:
+                raise
         if err != 0:
             # IOLoop implementations may vary: some of them return
             # an error state before the socket becomes writable, so
