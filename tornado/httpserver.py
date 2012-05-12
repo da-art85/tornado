@@ -163,7 +163,8 @@ class HTTPConnection(object):
                  xheaders=False):
         self.stream = stream
         if getattr(self.stream.socket, 'family', None) not in (socket.AF_INET, socket.AF_INET6):
-            # Unix (or other) socket; fake the remote address
+            # Unix (or other) socket; fake the remote address.
+            # jython 2.5.2 is missing the socket.family attribute
             address = ('0.0.0.0', 0)
         self.address = address
         self.request_callback = request_callback
@@ -263,7 +264,7 @@ class HTTPConnection(object):
     def _on_request_body(self, data):
         self._request.body = data
         content_type = self._request.headers.get("Content-Type", "")
-        if self._request.method in ("POST", "PUT"):
+        if self._request.method in ("POST", "PATCH", "PUT"):
             if content_type.startswith("application/x-www-form-urlencoded"):
                 arguments = parse_qs_bytes(native_str(self._request.body))
                 for name, values in arguments.iteritems():
@@ -392,10 +393,8 @@ class HTTPRequest(object):
         self._start_time = time.time()
         self._finish_time = None
 
-        scheme, netloc, path, query, fragment = urlparse.urlsplit(native_str(uri))
-        self.path = path
-        self.query = query
-        arguments = parse_qs_bytes(query)
+        self.path, sep, self.query = uri.partition('?')
+        arguments = parse_qs_bytes(self.query)
         self.arguments = {}
         for name, values in arguments.iteritems():
             values = [v for v in values if v]

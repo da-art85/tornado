@@ -123,7 +123,7 @@ class SimpleAsyncHTTPClient(AsyncHTTPClient):
 
 
 class _HTTPConnection(object):
-    _SUPPORTED_METHODS = set(["GET", "HEAD", "POST", "PUT", "DELETE"])
+    _SUPPORTED_METHODS = set(["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
 
     def __init__(self, io_loop, client, request, release_callback,
                  final_callback, max_buffer_size):
@@ -278,7 +278,7 @@ class _HTTPConnection(object):
         if self.request.user_agent:
             self.request.headers["User-Agent"] = self.request.user_agent
         if not self.request.allow_nonstandard_methods:
-            if self.request.method in ("POST", "PUT"):
+            if self.request.method in ("POST", "PATCH", "PUT"):
                 assert self.request.body is not None
             else:
                 assert self.request.body is None
@@ -288,7 +288,9 @@ class _HTTPConnection(object):
         if (self.request.method == "POST" and
             "Content-Type" not in self.request.headers):
             self.request.headers["Content-Type"] = "application/x-www-form-urlencoded"
-        if self.request.use_gzip:
+        if self.request.use_gzip and os.name != 'java':
+            # jython's zlib module doesn't support the magic to read
+            # gzip headers.
             self.request.headers["Accept-Encoding"] = "gzip"
         req_path = ((parsed.path or '/') +
                 (('?' + parsed.query) if parsed.query else ''))

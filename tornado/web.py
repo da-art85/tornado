@@ -83,7 +83,7 @@ from tornado import locale
 from tornado import stack_context
 from tornado import template
 from tornado.escape import utf8, _unicode
-from tornado.util import b, bytes_type, import_object, ObjectDict
+from tornado.util import b, bytes_type, import_object, ObjectDict, raise_exc_info
 
 try:
     from io import BytesIO  # python 3
@@ -98,7 +98,8 @@ class RequestHandler(object):
     should override the class variable SUPPORTED_METHODS in your
     RequestHandler class.
     """
-    SUPPORTED_METHODS = ("GET", "HEAD", "POST", "DELETE", "PUT", "OPTIONS")
+    SUPPORTED_METHODS = ("GET", "HEAD", "POST", "DELETE", "PATCH", "PUT",
+                         "OPTIONS")
 
     _template_loaders = {}  # {path: template.BaseLoader}
     _template_loader_lock = threading.Lock()
@@ -163,6 +164,9 @@ class RequestHandler(object):
         raise HTTPError(405)
 
     def delete(self, *args, **kwargs):
+        raise HTTPError(405)
+
+    def patch(self, *args, **kwargs):
         raise HTTPError(405)
 
     def put(self, *args, **kwargs):
@@ -404,6 +408,9 @@ class RequestHandler(object):
         Note that the ``expires_days`` parameter sets the lifetime of the
         cookie in the browser, but is independent of the ``max_age_days``
         parameter to `get_secure_cookie`.
+
+        Secure cookies may contain arbitrary byte values, not just unicode
+        strings (unlike regular cookies)
         """
         self.set_cookie(name, self.create_signed_value(name, value),
                         expires_days=expires_days, **kwargs)
@@ -420,7 +427,11 @@ class RequestHandler(object):
                                    name, value)
 
     def get_secure_cookie(self, name, value=None, max_age_days=31):
-        """Returns the given signed cookie if it validates, or None."""
+        """Returns the given signed cookie if it validates, or None.
+
+        The decoded cookie value is returned as a byte string (unlike
+        `get_cookie`).
+        """
         self.require_setting("cookie_secret", "secure cookies")
         if value is None:
             value = self.get_cookie(name)
@@ -728,7 +739,7 @@ class RequestHandler(object):
                 kwargs['exception'] = exc_info[1]
                 try:
                     # Put the traceback into sys.exc_info()
-                    raise exc_info[0], exc_info[1], exc_info[2]
+                    raise_exc_info(exc_info)
                 except Exception:
                     self.finish(self.get_error_html(status_code, **kwargs))
             else:
@@ -973,7 +984,7 @@ class RequestHandler(object):
             # the exception value instead of the full triple,
             # so re-raise the exception to ensure that it's in
             # sys.exc_info()
-            raise type, value, traceback
+            raise_exc_info((type, value, traceback))
         except Exception:
             self._handle_request_exception(value)
         return True
@@ -1380,7 +1391,11 @@ class Application(object):
     def reverse_url(self, name, *args):
         """Returns a URL path for handler named `name`
 
-        The handler must be added to the application as a named URLSpec
+        The handler must be added to the application as a named URLSpec.
+
+        Args will be substituted for capturing groups in the URLSpec regex.
+        They will be converted to strings if necessary, encoded as utf8,
+        and url-escaped.
         """
         if name in self.named_handlers:
             return self.named_handlers[name].reverse(*args)
@@ -1944,7 +1959,12 @@ class URLSpec(object):
             "not found"
         if not len(args):
             return self._path
-        return self._path % tuple([str(a) for a in args])
+        converted_args = []
+        for a in args:
+            if not isinstance(a, (unicode, bytes_type)):
+                a = str(a)
+            converted_args.append(escape.url_escape(utf8(a)))
+        return self._path % tuple(converted_args)
 
 url = URLSpec
 

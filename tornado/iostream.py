@@ -490,7 +490,7 @@ class IOStream(object):
         except socket.error, e:
             if e.args[0] == errno.ENOPROTOOPT:
                 # jython doesn't support getting error status with SO_ERROR,
-                # so assume that if the socket became writable it worked.
+                # so assume that if the socket became writeable it worked.
                 err = 0
             else:
                 raise
