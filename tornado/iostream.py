@@ -189,10 +189,18 @@ class IOStream(object):
         """
         assert isinstance(data, bytes_type)
         self._check_closed()
+        # We use bool(_write_buffer) as a proxy for write_buffer_size>0,
+        # so never put empty strings in the buffer.
         if data:
-            # We use bool(_write_buffer) as a proxy for write_buffer_size>0,
-            # so never put empty strings in the buffer.
-            self._write_buffer.append(data)
+            # Break up large contiguous strings before inserting them in the
+            # write buffer, so we don't have to recopy the entire thing
+            # as we slice off pieces to send to the socket.
+            WRITE_BUFFER_CHUNK_SIZE = 128 * 1024
+            if len(data) > WRITE_BUFFER_CHUNK_SIZE:
+                for i in range(0, len(data), WRITE_BUFFER_CHUNK_SIZE):
+                    self._write_buffer.append(data[i:i+WRITE_BUFFER_CHUNK_SIZE])
+            else:
+                self._write_buffer.append(data)
         self._write_callback = stack_context.wrap(callback)
         self._handle_write()
         if self._write_buffer:

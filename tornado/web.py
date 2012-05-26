@@ -123,7 +123,7 @@ class RequestHandler(object):
         self.ui["modules"] = self.ui["_modules"]
         self.clear()
         # Check since connection is not available in WSGI
-        if hasattr(self.request, "connection"):
+        if getattr(self.request, "connection", None):
             self.request.connection.stream.set_close_callback(
                 self.on_connection_close)
         self.initialize(**kwargs)
@@ -263,6 +263,15 @@ class RequestHandler(object):
         to return multiple values for the same header.
         """
         self._list_headers.append((name, self._convert_header_value(value)))
+
+    def clear_header(self, name):
+        """Clears an outgoing header, undoing a previous `set_header` call.
+
+        Note that this method does not apply to multi-valued headers
+        set by `add_header`.
+        """
+        if name in self._headers:
+            del self._headers[name]
 
     def _convert_header_value(self, value):
         if isinstance(value, bytes_type):
@@ -633,8 +642,9 @@ class RequestHandler(object):
         if not self._headers_written:
             self._headers_written = True
             for transform in self._transforms:
-                self._headers, chunk = transform.transform_first_chunk(
-                    self._headers, chunk, include_footers)
+                self._status_code, self._headers, chunk = \
+                    transform.transform_first_chunk(
+                    self._status_code, self._headers, chunk, include_footers)
             headers = self._generate_headers()
         else:
             for transform in self._transforms:
@@ -672,7 +682,10 @@ class RequestHandler(object):
                     if inm and inm.find(etag) != -1:
                         self._write_buffer = []
                         self.set_status(304)
-            if "Content-Length" not in self._headers:
+            if self._status_code == 304:
+                assert not self._write_buffer, "Cannot send body with 304"
+                self._clear_headers_for_304()
+            elif "Content-Length" not in self._headers:
                 content_length = sum(len(part) for part in self._write_buffer)
                 self.set_header("Content-Length", content_length)
 
@@ -1063,6 +1076,17 @@ class RequestHandler(object):
 
     def _ui_method(self, method):
         return lambda *args, **kwargs: method(self, *args, **kwargs)
+
+    def _clear_headers_for_304(self):
+        # 304 responses should not contain entity headers (defined in
+        # http://www.w3.org/Protocols/rfc2616/rfc2616-sec7.html#sec7.1)
+        # not explicitly allowed by
+        # http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html#sec10.3.5
+        headers = ["Allow", "Content-Encoding", "Content-Language",
+                   "Content-Length", "Content-MD5", "Content-Range",
+                   "Content-Type", "Last-Modified"]
+        for h in headers:
+            self.clear_header(h)
 
 
 def asynchronous(method):
@@ -1668,8 +1692,8 @@ class OutputTransform(object):
     def __init__(self, request):
         pass
 
-    def transform_first_chunk(self, headers, chunk, finishing):
-        return headers, chunk
+    def transform_first_chunk(self, status_code, headers, chunk, finishing):
+        return status_code, headers, chunk
 
     def transform_chunk(self, chunk, finishing):
         return chunk
@@ -1690,7 +1714,7 @@ class GZipContentEncoding(OutputTransform):
         self._gzipping = request.supports_http_1_1() and \
             "gzip" in request.headers.get("Accept-Encoding", "")
 
-    def transform_first_chunk(self, headers, chunk, finishing):
+    def transform_first_chunk(self, status_code, headers, chunk, finishing):
         if self._gzipping:
             ctype = _unicode(headers.get("Content-Type", "")).split(";")[0]
             self._gzipping = (ctype in self.CONTENT_TYPES) and \
@@ -1704,7 +1728,7 @@ class GZipContentEncoding(OutputTransform):
             chunk = self.transform_chunk(chunk, finishing)
             if "Content-Length" in headers:
                 headers["Content-Length"] = str(len(chunk))
-        return headers, chunk
+        return status_code, headers, chunk
 
     def transform_chunk(self, chunk, finishing):
         if self._gzipping:
@@ -1727,15 +1751,17 @@ class ChunkedTransferEncoding(OutputTransform):
     def __init__(self, request):
         self._chunking = request.supports_http_1_1()
 
-    def transform_first_chunk(self, headers, chunk, finishing):
-        if self._chunking:
+    def transform_first_chunk(self, status_code, headers, chunk, finishing):
+        # 304 responses have no body (not even a zero-length body), and so
+        # should not have either Content-Length or Transfer-Encoding headers.
+        if self._chunking and status_code != 304:
             # No need to chunk the output if a Content-Length is specified
             if "Content-Length" in headers or "Transfer-Encoding" in headers:
                 self._chunking = False
             else:
                 headers["Transfer-Encoding"] = "chunked"
                 chunk = self.transform_chunk(chunk, finishing)
-        return headers, chunk
+        return status_code, headers, chunk
 
     def transform_chunk(self, block, finishing):
         if self._chunking:

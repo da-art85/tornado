@@ -154,6 +154,10 @@ class HTTPHeaders(dict):
         for k, v in dict(*args, **kwargs).iteritems():
             self[k] = v
 
+    def copy(self):
+        # default implementation returns dict(self), not the subclass
+        return HTTPHeaders(self)
+
     _NORMALIZED_HEADER_RE = re.compile(r'^[A-Z0-9][a-z0-9]*(-[A-Z0-9][a-z0-9]*)*$')
     _normalized_headers = {}
 
@@ -215,11 +219,11 @@ def parse_multipart_form_data(boundary, data, arguments, files):
     # in the wild.
     if boundary.startswith(b('"')) and boundary.endswith(b('"')):
         boundary = boundary[1:-1]
-    if data.endswith(b("\r\n")):
-        footer_length = len(boundary) + 6
-    else:
-        footer_length = len(boundary) + 4
-    parts = data[:-footer_length].split(b("--") + boundary + b("\r\n"))
+    final_boundary_index = data.rfind(b("--") + boundary + b("--"))
+    if final_boundary_index == -1:
+        logging.warning("Invalid multipart/form-data: no final boundary")
+        return
+    parts = data[:final_boundary_index].split(b("--") + boundary + b("\r\n"))
     for part in parts:
         if not part:
             continue
