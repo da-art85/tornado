@@ -241,7 +241,9 @@ class HTTPConnection(object):
                 socket.AF_INET, socket.AF_INET6):
                 # Jython 2.5.2 doesn't have the socket.family attribute,
                 # so just assume IP in that case.
-                remote_ip = self.address[0]
+                # Jython also returns unicode here but most everything
+                # else that touches this variable expects a native str.
+                remote_ip = native_str(self.address[0])
             else:
                 # Unix (or other) socket; fake the remote address
                 remote_ip = '0.0.0.0'
