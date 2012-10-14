@@ -142,6 +142,8 @@ def add_reload_hook(fn):
 
 
 def _close_all_fds(io_loop):
+    if not hasattr(ioloop, '_handlers'):
+        return
     for fd in io_loop._handlers.keys():
         try:
             os.close(fd)

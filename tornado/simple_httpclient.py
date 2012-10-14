@@ -213,28 +213,35 @@ class _HTTPConnection(object):
                 # information.
                 ssl_options["ssl_version"] = ssl.PROTOCOL_SSLv3
 
-            self.stream = SSLIOStream(socket.socket(af, socktype, proto),
-                                      io_loop=self.io_loop,
-                                      ssl_options=ssl_options,
-                                      max_buffer_size=self.max_buffer_size)
+            connect_method = functools.partial(self.io_loop.connect_ssl, ssl_options=ssl_options, socket_args=(af, socktype, proto))
+            #self.stream = SSLIOStream(socket.socket(af, socktype, proto),
+            #                          io_loop=self.io_loop,
+            #                          ssl_options=ssl_options,
+            #                          max_buffer_size=self.max_buffer_size)
         else:
-            self.stream = IOStream(socket.socket(af, socktype, proto),
-                                   io_loop=self.io_loop,
-                                   max_buffer_size=self.max_buffer_size)
+            #self.stream = IOStream(socket.socket(af, socktype, proto),
+            #                       io_loop=self.io_loop,
+            #                       max_buffer_size=self.max_buffer_size)
+            connect_method = functools.partial(self.io_loop.connect_tcp, socket_args=(af, socktype, proto))
         timeout = min(self.request.connect_timeout, self.request.request_timeout)
         if timeout:
             self._timeout = self.io_loop.add_timeout(
                 self.start_time + timeout,
                 stack_context.wrap(self._on_timeout))
-        self.stream.set_close_callback(self._on_close)
-        self.stream.connect(sockaddr, self._on_connect)
+
+        self.io_loop.add_future(connect_method(sockaddr), self._on_connect)
+        #connect_method(sockaddr, self._on_connect)
+        #self.stream.set_close_callback(self._on_close)
+        #self.stream.connect(sockaddr, self._on_connect)
 
     def _on_timeout(self):
         self._timeout = None
         if self.final_callback is not None:
             raise HTTPError(599, "Timeout")
 
-    def _on_connect(self):
+    def _on_connect(self, stream_future):
+        self.stream = stream_future.result()
+        self.stream.set_close_callback(self._on_close)
         if self._timeout is not None:
             self.io_loop.remove_timeout(self._timeout)
             self._timeout = None

@@ -41,7 +41,7 @@ import threading
 import time
 import traceback
 
-from tornado.concurrent import DummyFuture
+from tornado.concurrent import DummyFuture, future_wrap
 from tornado.log import app_log, gen_log
 from tornado import stack_context
 from tornado.util import Configurable
@@ -383,6 +383,32 @@ class IOLoop(Configurable):
         in sys.exc_info.
         """
         app_log.error("Exception in callback %r", callback, exc_info=True)
+
+    @future_wrap
+    def connect_tcp(self, address, callback, socket_args=None):
+        import socket
+        from tornado.iostream import IOStream
+        stream = IOStream(socket.socket(*(socket_args or [])), io_loop=self)
+        def _close_callback():
+            raise stream.error or Exception("stream closed")
+        stream.set_close_callback(_close_callback)
+        def _finished_callback():
+            stream.set_close_callback(None)
+            callback(stream)
+        stream.connect(address, callback=_finished_callback)
+
+    @future_wrap
+    def connect_ssl(self, address, callback, ssl_options=None, socket_args=None, close_callback=None):
+        import socket
+        from tornado.iostream import SSLIOStream
+        stream = SSLIOStream(socket.socket(*(socket_args or [])), io_loop=self, ssl_options=ssl_options or {})
+        def _close_callback():
+            raise stream.error or Exception("stream closed")
+        def _finished_callback():
+            stream.set_close_callback(None)
+            callback(stream)
+        stream.set_close_callback(_close_callback)
+        stream.connect(address, callback=_finished_callback)
 
 
 

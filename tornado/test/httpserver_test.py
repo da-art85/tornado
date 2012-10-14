@@ -160,7 +160,8 @@ class RawRequestHTTPConnection(simple_httpclient._HTTPConnection):
     def set_request(self, request):
         self.__next_request = request
 
-    def _on_connect(self):
+    def _on_connect(self, stream_future):
+        self.stream = stream_future.result()
         self.stream.write(self.__next_request)
         self.__next_request = None
         self.stream.read_until(b("\r\n\r\n"), self._on_headers)

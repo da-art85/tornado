@@ -461,3 +461,71 @@ class TwistedIOLoop(tornado.ioloop.IOLoop):
 
     def add_callback_from_signal(self, callback):
         self.add_callback(callback)
+
+    from tornado.concurrent import future_wrap
+
+    @future_wrap
+    def connect_tcp(self, address, callback, socket_args=None):
+        host, port = address[:2]
+        factory = IOStreamClientFactory()
+        factory.callback = wrap(callback)
+        def error_callback(err):
+            raise err
+        factory.error_callback = wrap(error_callback)
+        self.reactor.connectTCP(host, port, factory)
+
+    # requires pyOpenSSL
+    # @future_wrap
+    # def connect_ssl(self, address, callback, ssl_options=None, socket_args=None):
+    #     host, port = address[:2]
+    #     factory = IOStreamClientFactory()
+    #     factory.callback = wrap(callback)
+    #     def error_callback(err):
+    #         raise err
+    #     factory.error_callback = wrap(error_callback)
+    #     from twisted.internet.ssl import ClientContextFactory
+    #     self.reactor.connectSSL(host, port, factory, ClientContextFactory)
+
+import collections
+import logging
+from tornado.iostream import BaseIOStream
+
+from twisted.internet.protocol import Protocol, ClientFactory
+class TwistedIOStream(BaseIOStream, Protocol):
+    def _try_inline_read(self):
+        self._read_from_buffer()
+
+    def _handle_write(self):
+        out = ''.join(self._write_buffer)
+        self._write_buffer = collections.deque()
+        self.transport.write(out)
+
+    def _maybe_add_error_listener(self):
+        return
+
+    def close(self):
+        if not self._closed:
+            self._closed = True
+            self.transport.loseConnection()
+
+    def dataReceived(self, data):
+        self._read_buffer.append(data)
+        self._read_buffer_size += len(data)
+        self._read_from_buffer()
+
+    def connectionMade(self):
+        self.factory.callback(self)
+
+    def connectionLost(self, reason=None):
+        self.close()
+
+class IOStreamClientFactory(ClientFactory):
+    protocol = TwistedIOStream
+
+    def clientConnectionFailed(self, connector, reason):
+        try:
+            err = IOError(reason.value.osError, str(reason.value))
+        except AttributeError:
+            err = Exception("connection failed")
+        self.error_callback(err)
+
