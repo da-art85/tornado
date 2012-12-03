@@ -21,6 +21,7 @@ def main():
     parse_command_line()
     tornado.locale.load_translations(
         os.path.join(os.path.dirname(__file__), "translations"))
+    tornado.locale.load_pseudo_translations()
 
     app = Application(
         [
@@ -31,7 +32,7 @@ def main():
         )
     app.listen(options.port)
     IOLoop.instance().start()
-    
+
 
 if __name__ == '__main__':
     main()
