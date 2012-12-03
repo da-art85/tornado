@@ -92,3 +92,12 @@ PSEUDOLOCALE_ACCENT_MAPS = {
     '0123456789': u'⓪①②③④⑤⑥⑦⑧⑨',
     ' !"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~': u' ¡″♯€‰⅋´{}⁎⁺،‐·⁄∶⁏≤≂≥¿՞⁅∖⁆˄‿‵(¦)˞',
     }
+
+# This mapping comes from
+# https://github.com/cburgmer/upsidedown/blob/master/upsidedown.py
+PSEUDOLOCALE_UPSIDEDOWN_MAPS = {
+    'abcdefghijklmnopqrstuvwxyz': u"ɐqɔpǝɟƃɥᴉɾʞꞁɯuodbɹsʇnʌʍxʎz",
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZ': u"ⱯᗺƆᗡƎᖵ⅁HIᒋ⋊ꞀWNOԀꝹᴚS⊥∩ɅMX⅄Z",
+    '0123456789': u"0ІᘔƐᔭ59Ɫ86",
+    '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~': u"¡„#$%⅋,)(*+'-˙/:؛>=<¿@]\\[ᵥ‾`}|{~",
+}

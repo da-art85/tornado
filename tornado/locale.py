@@ -53,7 +53,7 @@ from tornado import escape
 from tornado.log import gen_log
 from tornado.util import u
 
-from tornado._locale_data import LOCALE_NAMES, PSEUDOLOCALE_ACCENT_MAPS
+from tornado._locale_data import LOCALE_NAMES, PSEUDOLOCALE_ACCENT_MAPS, PSEUDOLOCALE_UPSIDEDOWN_MAPS
 
 _default_locale = "en_US"
 _translations = {}
@@ -550,11 +550,25 @@ class AccentPseudoLocale(PseudoLocale):
         return re.sub('.',
                       lambda m: self.map.get(m.group(0), m.group(0)), message)
 
+class UpsideDownPseudoLocale(PseudoLocale):
+    CODE = 'xx_UD'
+
+    def __init__(self):
+        self.map = {}
+        for before, after in PSEUDOLOCALE_UPSIDEDOWN_MAPS.iteritems():
+            self.map.update(zip(before, after))
+        super(UpsideDownPseudoLocale, self).__init__()
+
+    def pseudolocalize(self, message):
+        message = re.sub(
+            '.', lambda m: self.map.get(m.group(0), m.group(0)), message)
+        return u''.join(reversed(message))
+
 def load_pseudo_translations():
     if not hasattr(Locale, '_cache'):
         Locale._cache = {}
     codes = []
-    for cls in [BracketPseudoLocale, AccentPseudoLocale]:
+    for cls in [BracketPseudoLocale, AccentPseudoLocale, UpsideDownPseudoLocale]:
         Locale._cache[cls.CODE] = cls()
         codes.append(cls.CODE)
     global _supported_locales
