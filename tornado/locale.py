@@ -605,13 +605,39 @@ class UpsideDownBidiPseudoLocale(PseudoLocale):
         # Don't reverse - rtl does that.
         return message
 
+class ExpanderPseudoLocale(PseudoLocale):
+    CODE = 'xx_EX'
+
+    NUMBERS = ["one", "two", "three", "four", "five", "six", "seven",
+               "eight", "nine", "ten", "eleven", "twelve", "thirteen",
+               "fourteen", "fifteen", "sixteen", "seventeen", "eighteen",
+               "nineteen", "twenty", "twentyone", "twentytwo",
+               "twentythree", "twentyfour", "twentyfive", "twentysix",
+               "twentyseven", "twentyeight", "twentynine", "thirty",
+               "thirtyone", "thirtytwo", "thirtythree", "thirtyfour",
+               "thirtyfive", "thirtysix", "thirtyseven", "thirtyeight",
+               "thirtynine", "forty"]
+
+    def pseudolocalize(self, message):
+        if len(message.split(None, 3)) > 2:
+            chars_needed = len(message)
+        else:
+            chars_needed = (len(message) + 1) // 2
+        chunks = [message]
+        pos = 0
+        while chars_needed > 0:
+            chunks.append(self.NUMBERS[pos % len(self.NUMBERS)])
+            pos += 1
+            chars_needed -= len(chunks[-1]) + 1
+        return u' '.join(chunks)
+
 def load_pseudo_translations():
     if not hasattr(Locale, '_cache'):
         Locale._cache = {}
     codes = []
     for cls in [BracketPseudoLocale, AccentPseudoLocale,
                 UpsideDownPseudoLocale, FakeBidiPseudoLocale,
-                UpsideDownBidiPseudoLocale]:
+                UpsideDownBidiPseudoLocale, ExpanderPseudoLocale]:
         Locale._cache[cls.CODE] = cls()
         codes.append(cls.CODE)
     global _supported_locales
