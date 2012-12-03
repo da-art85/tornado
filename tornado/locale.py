@@ -570,7 +570,8 @@ class FakeBidiPseudoLocale(PseudoLocale):
         super(FakeBidiPseudoLocale, self).__init__()
         self.rtl = True
 
-    def pseudolocalize(self, message):
+    @staticmethod
+    def pseudolocalize(message):
         import unicodedata
         RLO = u'\u202e'  # right-to-left override
         PDF = u'\u202c'  # pop directional formatting
@@ -584,12 +585,33 @@ class FakeBidiPseudoLocale(PseudoLocale):
             chars.append(char)
         return u''.join(chars)
 
+class UpsideDownBidiPseudoLocale(PseudoLocale):
+    CODE = 'xx_UB'
+
+    def __init__(self):
+        self.map = {}
+        for before, after in PSEUDOLOCALE_UPSIDEDOWN_MAPS.iteritems():
+            self.map.update(zip(before, after))
+        for char in '()[]{}<>':
+            # directional characters are reversed by the rtl processing
+            del self.map[char]
+        super(UpsideDownBidiPseudoLocale, self).__init__()
+        self.rtl = True
+
+    def pseudolocalize(self, message):
+        message = FakeBidiPseudoLocale.pseudolocalize(message)
+        message = re.sub(
+            '.', lambda m: self.map.get(m.group(0), m.group(0)), message)
+        # Don't reverse - rtl does that.
+        return message
+
 def load_pseudo_translations():
     if not hasattr(Locale, '_cache'):
         Locale._cache = {}
     codes = []
     for cls in [BracketPseudoLocale, AccentPseudoLocale,
-                UpsideDownPseudoLocale, FakeBidiPseudoLocale]:
+                UpsideDownPseudoLocale, FakeBidiPseudoLocale,
+                UpsideDownBidiPseudoLocale]:
         Locale._cache[cls.CODE] = cls()
         codes.append(cls.CODE)
     global _supported_locales
