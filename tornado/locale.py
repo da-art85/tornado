@@ -534,7 +534,8 @@ class PseudoLocale(Locale):
 class BracketPseudoLocale(PseudoLocale):
     CODE = 'xx_BR'
 
-    def pseudolocalize(self, message):
+    @staticmethod
+    def pseudolocalize(message):
         return '[ %s ]' % message
 
 class AccentPseudoLocale(PseudoLocale):
@@ -618,7 +619,8 @@ class ExpanderPseudoLocale(PseudoLocale):
                "thirtyfive", "thirtysix", "thirtyseven", "thirtyeight",
                "thirtynine", "forty"]
 
-    def pseudolocalize(self, message):
+    @staticmethod
+    def pseudolocalize(message):
         if len(message.split(None, 3)) > 2:
             chars_needed = len(message)
         else:
@@ -626,10 +628,24 @@ class ExpanderPseudoLocale(PseudoLocale):
         chunks = [message]
         pos = 0
         while chars_needed > 0:
-            chunks.append(self.NUMBERS[pos % len(self.NUMBERS)])
+            chunks.append(ExpanderPseudoLocale.NUMBERS[
+                    pos % len(ExpanderPseudoLocale.NUMBERS)])
             pos += 1
             chars_needed -= len(chunks[-1]) + 1
         return u' '.join(chunks)
+
+class AllPseudoLocale(PseudoLocale):
+    CODE = 'xx_AL'
+
+    def __init__(self):
+        self._accenter = AccentPseudoLocale()
+        super(AllPseudoLocale, self).__init__()
+
+    def pseudolocalize(self, message):
+        message = self._accenter.pseudolocalize(message)
+        message = ExpanderPseudoLocale.pseudolocalize(message)
+        message = BracketPseudoLocale.pseudolocalize(message)
+        return message
 
 def load_pseudo_translations():
     if not hasattr(Locale, '_cache'):
@@ -637,7 +653,8 @@ def load_pseudo_translations():
     codes = []
     for cls in [BracketPseudoLocale, AccentPseudoLocale,
                 UpsideDownPseudoLocale, FakeBidiPseudoLocale,
-                UpsideDownBidiPseudoLocale, ExpanderPseudoLocale]:
+                UpsideDownBidiPseudoLocale, ExpanderPseudoLocale,
+                AllPseudoLocale]:
         Locale._cache[cls.CODE] = cls()
         codes.append(cls.CODE)
     global _supported_locales
