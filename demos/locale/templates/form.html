@@ -6,21 +6,21 @@
 
 <!-- Based on sample from http://google-opensource.blogspot.com/2011/06/pseudolocalization-to-catch-i18n-errors.html -->
 
-<div style="width: 300px">
-  <div style="background: #ddd">{{_("Add")}} {{_("Edit")}} {{_("Delete")}} <span style="float: right">{{_("Help")}}</div>
-  <h3 align="center">Add Contact</h3>
+<div style="width: 300px" {% if locale.rtl %}dir="rtl"{% end %}>
+  <div style="background: #ddd">{{_("Add")}} {{_("Edit")}} {{_("Delete")}} <span style="float: {% if locale.rtl %}left{% else %}right{% end %}">{{_("Help")}}</div>
+  <h3 align="center">{{_("Add Contact")}}</h3>
   <form>
     <table>
-      <tr><td>Name: <td><input type="text" name="name"></tr>
-      <tr><td>Number: <td><input type="text" name="number"></tr>
-      <tr><td>Sex (optional):<td>
-          <input type="radio" name="sex" value="male">Male
-          <input type="radio" name="sex" value="female">Female
+      <tr><td>{{_("Name:")}}<td><input type="text" name="name"></tr>
+      <tr><td>{{_("Number:")}}<td><input type="text" name="number"></tr>
+      <tr><td>{{_("Sex (optional):")}}<td>
+          <input type="radio" name="sex" value="male">{{_("Male")}}
+          <input type="radio" name="sex" value="female">{{_("Female")}}
       </tr>
     </table>
     <div align="center">
-      <input type="submit">
-      <input type="reset" value="Clear">
+      <input type="submit" value="{{_('Submit')}}">
+      <input type="reset" value="{{_('Clear')}}">
     </div>
   </form>
 </div>

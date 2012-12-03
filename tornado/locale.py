@@ -564,11 +564,32 @@ class UpsideDownPseudoLocale(PseudoLocale):
             '.', lambda m: self.map.get(m.group(0), m.group(0)), message)
         return u''.join(reversed(message))
 
+class FakeBidiPseudoLocale(PseudoLocale):
+    CODE = 'xx_BI'
+    def __init__(self):
+        super(FakeBidiPseudoLocale, self).__init__()
+        self.rtl = True
+
+    def pseudolocalize(self, message):
+        import unicodedata
+        RLO = u'\u202e'  # right-to-left override
+        PDF = u'\u202c'  # pop directional formatting
+        chars = []
+        wrapped = False
+        for char in escape.to_unicode(message):
+            needs_wrap = (unicodedata.bidirectional(char) == 'L')
+            if needs_wrap != wrapped:
+                wrapped = needs_wrap
+                chars.append(RLO if wrapped else PDF)
+            chars.append(char)
+        return u''.join(chars)
+
 def load_pseudo_translations():
     if not hasattr(Locale, '_cache'):
         Locale._cache = {}
     codes = []
-    for cls in [BracketPseudoLocale, AccentPseudoLocale, UpsideDownPseudoLocale]:
+    for cls in [BracketPseudoLocale, AccentPseudoLocale,
+                UpsideDownPseudoLocale, FakeBidiPseudoLocale]:
         Locale._cache[cls.CODE] = cls()
         codes.append(cls.CODE)
     global _supported_locales
