@@ -19,7 +19,6 @@
 from __future__ import absolute_import, division, print_function, with_statement
 
 import errno
-import multiprocessing
 import os
 import signal
 import subprocess
@@ -32,6 +31,12 @@ from tornado import ioloop
 from tornado.iostream import PipeIOStream
 from tornado.log import gen_log
 from tornado import stack_context
+
+try:
+    import multiprocessing
+except ImportError:
+    # multiprocessing was introduced in 2.6, but jython 2.7 doesn't have it
+    multiprocessing = None
 
 try:
     long  # py2
