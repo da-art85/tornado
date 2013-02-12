@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 
-from __future__ import absolute_import, division, with_statement
-import unittest
-import time
-from tornado.testing import AsyncTestCase, LogTrapTestCase
+from __future__ import absolute_import, division, print_function, with_statement
+
+from tornado import gen
+from tornado.testing import AsyncTestCase, gen_test
+from tornado.test.util import unittest
 
 
-class AsyncTestCaseTest(AsyncTestCase, LogTrapTestCase):
+class AsyncTestCaseTest(AsyncTestCase):
     def test_exception_in_callback(self):
         self.io_loop.add_callback(lambda: 1 / 0)
         try:
@@ -20,10 +21,11 @@ class AsyncTestCaseTest(AsyncTestCase, LogTrapTestCase):
         This test makes sure that a second call to wait()
         clears the first timeout.
         """
-        self.io_loop.add_timeout(time.time() + 0.01, self.stop)
-        self.wait(timeout = 0.02)
-        self.io_loop.add_timeout(time.time() + 0.03, self.stop)
-        self.wait(timeout = 0.1)
+        self.io_loop.add_timeout(self.io_loop.time() + 0.01, self.stop)
+        self.wait(timeout=0.02)
+        self.io_loop.add_timeout(self.io_loop.time() + 0.03, self.stop)
+        self.wait(timeout=0.15)
+
 
 class SetUpTearDownTest(unittest.TestCase):
     def test_set_up_tear_down(self):
@@ -52,6 +54,25 @@ class SetUpTearDownTest(unittest.TestCase):
         InheritBoth('test').run(result)
         expected = ['setUp', 'test', 'tearDown']
         self.assertEqual(expected, events)
+
+
+class GenTest(AsyncTestCase):
+    def setUp(self):
+        super(GenTest, self).setUp()
+        self.finished = False
+
+    def tearDown(self):
+        self.assertTrue(self.finished)
+        super(GenTest, self).tearDown()
+
+    @gen_test
+    def test_sync(self):
+        self.finished = True
+
+    @gen_test
+    def test_async(self):
+        yield gen.Task(self.io_loop.add_callback)
+        self.finished = True
 
 if __name__ == '__main__':
     unittest.main()

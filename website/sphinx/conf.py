@@ -30,6 +30,9 @@ coverage_ignore_classes = [
     "Runner",
     "YieldPoint",
 
+    # tornado.ioloop
+    "PollIOLoop",
+
     # tornado.web
     "ChunkedTransferEncoding",
     "GZipContentEncoding",
@@ -48,7 +51,7 @@ coverage_ignore_functions = [
     "doctests",
     "main",
 ]
-    
+
 html_static_path = [os.path.abspath("../static")]
 html_style = "sphinx.css"
 highlight_language = "none"
@@ -74,3 +77,7 @@ html_theme_options = dict(
     headfont="Calibri, sans-serif",
     stickysidebar=True,
     )
+
+latex_documents = [
+    ('index', 'tornado.tex', 'Tornado Documentation', 'Facebook', 'manual', False),
+    ]

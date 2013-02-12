@@ -25,19 +25,7 @@ except ImportError:
 
 kwargs = {}
 
-# Build the epoll extension for Linux systems with Python < 2.6
-extensions = []
-major, minor = sys.version_info[:2]
-python_26 = (major > 2 or (major == 2 and minor >= 6))
-if "linux" in sys.platform.lower() and not python_26:
-    extensions.append(distutils.core.Extension(
-        "tornado.epoll", ["tornado/epoll.c"]))
-
-version = "2.2.post1"
-
-if major >= 3:
-    import setuptools  # setuptools is required for use_2to3
-    kwargs["use_2to3"] = True
+version = "2.4.post2"
 
 distutils.core.setup(
     name="tornado",
@@ -45,10 +33,20 @@ distutils.core.setup(
     packages = ["tornado", "tornado.test", "tornado.platform"],
     package_data = {
         "tornado": ["ca-certificates.crt"],
-        "tornado.test": ["README", "test.crt", "test.key", "static/robots.txt",
-                         "templates/utf8.html"],
+        # data files need to be listed both here (which determines what gets
+        # installed) and in MANIFEST.in (which determines what gets included
+        # in the sdist tarball)
+        "tornado.test": [
+            "README",
+            "test.crt",
+            "test.key",
+            "static/robots.txt",
+            "templates/utf8.html",
+            "csv_translations/fr_FR.csv",
+            "gettext_translations/fr_FR/LC_MESSAGES/tornado_test.mo",
+            "gettext_translations/fr_FR/LC_MESSAGES/tornado_test.po",
+            ],
         },
-    ext_modules = extensions,
     author="Facebook",
     author_email="python-tornado@googlegroups.com",
     url="http://www.tornadoweb.org/",

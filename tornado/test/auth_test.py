@@ -4,11 +4,12 @@
 # python 3)
 
 
-from __future__ import absolute_import, division, with_statement
-from tornado.auth import OpenIdMixin, OAuthMixin, OAuth2Mixin
+from __future__ import absolute_import, division, print_function, with_statement
+from tornado.auth import OpenIdMixin, OAuthMixin, OAuth2Mixin, TwitterMixin, GoogleMixin
 from tornado.escape import json_decode
-from tornado.testing import AsyncHTTPTestCase, LogTrapTestCase
-from tornado.util import b
+from tornado import gen
+from tornado.testing import AsyncHTTPTestCase
+from tornado.util import u
 from tornado.web import RequestHandler, Application, asynchronous
 
 
@@ -25,13 +26,15 @@ class OpenIdClientLoginHandler(RequestHandler, OpenIdMixin):
         self.authenticate_redirect()
 
     def on_user(self, user):
-        assert user is not None
+        if user is None:
+            raise Exception("user is None")
         self.finish(user)
 
 
 class OpenIdServerAuthenticateHandler(RequestHandler):
     def post(self):
-        assert self.get_argument('openid.mode') == 'check_authentication'
+        if self.get_argument('openid.mode') != 'check_authentication':
+            raise Exception("incorrect openid.mode %r")
         self.write('is_valid:true')
 
 
@@ -54,11 +57,13 @@ class OAuth1ClientLoginHandler(RequestHandler, OAuthMixin):
         self.authorize_redirect(http_client=self.settings['http_client'])
 
     def on_user(self, user):
-        assert user is not None
+        if user is None:
+            raise Exception("user is None")
         self.finish(user)
 
     def _oauth_get_user(self, access_token, callback):
-        assert access_token == dict(key=b('uiop'), secret=b('5678')), access_token
+        if access_token != dict(key=b'uiop', secret=b'5678'):
+            raise Exception("incorrect access token %r" % access_token)
         callback(dict(email='foo@example.com'))
 
 
@@ -74,8 +79,6 @@ class OAuth1ClientRequestParametersHandler(RequestHandler, OAuthMixin):
             'http://www.example.com/api/asdf',
             dict(key='uiop', secret='5678'),
             parameters=dict(foo='bar'))
-        import urllib
-        urllib.urlencode(params)
         self.write(params)
 
 
@@ -97,7 +100,81 @@ class OAuth2ClientLoginHandler(RequestHandler, OAuth2Mixin):
         self.authorize_redirect()
 
 
-class AuthTest(AsyncHTTPTestCase, LogTrapTestCase):
+class TwitterClientHandler(RequestHandler, TwitterMixin):
+    def initialize(self, test):
+        self._OAUTH_REQUEST_TOKEN_URL = test.get_url('/oauth1/server/request_token')
+        self._OAUTH_ACCESS_TOKEN_URL = test.get_url('/twitter/server/access_token')
+        self._OAUTH_AUTHORIZE_URL = test.get_url('/oauth1/server/authorize')
+        self._TWITTER_BASE_URL = test.get_url('/twitter/api')
+
+
+    def get_auth_http_client(self):
+        return self.settings['http_client']
+
+
+class TwitterClientLoginHandler(TwitterClientHandler):
+    @asynchronous
+    def get(self):
+        if self.get_argument("oauth_token", None):
+            self.get_authenticated_user(self.on_user)
+            return
+        self.authorize_redirect()
+
+    def on_user(self, user):
+        if user is None:
+            raise Exception("user is None")
+        self.finish(user)
+
+
+class TwitterClientShowUserHandler(TwitterClientHandler):
+    @asynchronous
+    @gen.engine
+    def get(self):
+        # TODO: would be nice to go through the login flow instead of
+        # cheating with a hard-coded access token.
+        response = yield gen.Task(self.twitter_request, '/users/show/somebody',
+                                  access_token=dict(key='hjkl', secret='vbnm'))
+        assert response is not None
+        self.finish(response)
+
+class TwitterServerAccessTokenHandler(RequestHandler):
+    def get(self):
+        self.write('oauth_token=hjkl&oauth_token_secret=vbnm&screen_name=foo')
+
+
+class TwitterServerShowUserHandler(RequestHandler):
+    def get(self, screen_name):
+        assert 'oauth_nonce' in self.request.arguments
+        assert 'oauth_timestamp' in self.request.arguments
+        assert 'oauth_signature' in self.request.arguments
+        assert self.get_argument('oauth_consumer_key') == 'test_twitter_consumer_key'
+        assert self.get_argument('oauth_signature_method') == 'HMAC-SHA1'
+        assert self.get_argument('oauth_version') == '1.0a'
+        assert self.get_argument('oauth_token') == 'hjkl'
+        self.write(dict(screen_name=screen_name, name=screen_name.capitalize()))
+
+
+class GoogleOpenIdClientLoginHandler(RequestHandler, GoogleMixin):
+    def initialize(self, test):
+        self._OPENID_ENDPOINT = test.get_url('/openid/server/authenticate')
+
+    @asynchronous
+    def get(self):
+        if self.get_argument("openid.mode", None):
+            self.get_authenticated_user(self.on_user)
+            return
+        self.authenticate_redirect()
+
+    def on_user(self, user):
+        if user is None:
+            raise Exception("user is None")
+        self.finish(user)
+
+    def get_auth_http_client(self):
+        return self.settings['http_client']
+
+
+class AuthTest(AsyncHTTPTestCase):
     def get_app(self):
         return Application(
             [
@@ -115,12 +192,21 @@ class AuthTest(AsyncHTTPTestCase, LogTrapTestCase):
                  dict(version='1.0a')),
                 ('/oauth2/client/login', OAuth2ClientLoginHandler, dict(test=self)),
 
+                ('/twitter/client/login', TwitterClientLoginHandler, dict(test=self)),
+                ('/twitter/client/show_user', TwitterClientShowUserHandler, dict(test=self)),
+                ('/google/client/openid_login', GoogleOpenIdClientLoginHandler, dict(test=self)),
+
                 # simulated servers
                 ('/openid/server/authenticate', OpenIdServerAuthenticateHandler),
                 ('/oauth1/server/request_token', OAuth1ServerRequestTokenHandler),
                 ('/oauth1/server/access_token', OAuth1ServerAccessTokenHandler),
-                ],
-            http_client=self.http_client)
+
+                ('/twitter/server/access_token', TwitterServerAccessTokenHandler),
+                (r'/twitter/api/users/show/(.*)\.json', TwitterServerShowUserHandler),
+            ],
+            http_client=self.http_client,
+            twitter_consumer_key='test_twitter_consumer_key',
+            twitter_consumer_secret='test_twitter_consumer_secret')
 
     def test_openid_redirect(self):
         response = self.fetch('/openid/client/login', follow_redirects=False)
@@ -194,3 +280,47 @@ class AuthTest(AsyncHTTPTestCase, LogTrapTestCase):
         response = self.fetch('/oauth2/client/login', follow_redirects=False)
         self.assertEqual(response.code, 302)
         self.assertTrue('/oauth2/server/authorize?' in response.headers['Location'])
+
+    def test_twitter_redirect(self):
+        # Same as test_oauth10a_redirect
+        response = self.fetch('/twitter/client/login', follow_redirects=False)
+        self.assertEqual(response.code, 302)
+        self.assertTrue(response.headers['Location'].endswith(
+            '/oauth1/server/authorize?oauth_token=zxcv'))
+        # the cookie is base64('zxcv')|base64('1234')
+        self.assertTrue(
+            '_oauth_request_token="enhjdg==|MTIzNA=="' in response.headers['Set-Cookie'],
+            response.headers['Set-Cookie'])
+
+    def test_twitter_get_user(self):
+        response = self.fetch(
+            '/twitter/client/login?oauth_token=zxcv',
+            headers={'Cookie': '_oauth_request_token=enhjdg==|MTIzNA=='})
+        response.rethrow()
+        parsed = json_decode(response.body)
+        self.assertEqual(parsed,
+                         {u('access_token'): {u('key'): u('hjkl'),
+                                              u('screen_name'): u('foo'),
+                                              u('secret'): u('vbnm')},
+                          u('name'): u('Foo'),
+                          u('screen_name'): u('foo'),
+                          u('username'): u('foo')})
+
+    def test_twitter_show_user(self):
+        response = self.fetch('/twitter/client/show_user')
+        response.rethrow()
+        self.assertEqual(json_decode(response.body),
+                         {'name': 'Somebody', 'screen_name': 'somebody'})
+
+    def test_google_redirect(self):
+        # same as test_openid_redirect
+        response = self.fetch('/google/client/openid_login', follow_redirects=False)
+        self.assertEqual(response.code, 302)
+        self.assertTrue(
+            '/openid/server/authenticate?' in response.headers['Location'])
+
+    def test_google_get_user(self):
+        response = self.fetch('/google/client/openid_login?openid.mode=blah&openid.ns.ax=http://openid.net/srv/ax/1.0&openid.ax.type.email=http://axschema.org/contact/email&openid.ax.value.email=foo@example.com', follow_redirects=False)
+        response.rethrow()
+        parsed = json_decode(response.body)
+        self.assertEqual(parsed["email"], "foo@example.com")
