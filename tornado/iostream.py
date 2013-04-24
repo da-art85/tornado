@@ -244,16 +244,18 @@ class BaseIOStream(object):
                 self._state = None
             self.close_fd()
             self._closed = True
-        self._maybe_run_close_callback()
+        self._maybe_finalize()
 
-    def _maybe_run_close_callback(self):
-        if (self.closed() and self._close_callback and
-                self._pending_callbacks == 0):
-            # if there are pending callbacks, don't run the close callback
-            # until they're done (see _maybe_add_error_handler)
-            cb = self._close_callback
-            self._close_callback = None
-            self._run_callback(cb)
+    def _maybe_finalize(self):
+        # if there are pending callbacks, don't run the close callback
+        # until they're done (see _maybe_add_error_handler)
+        if self.closed() and self._pending_callbacks == 0:
+            if self._close_callback is not None:
+                cb = self._close_callback
+                self._close_callback = None
+                self._run_callback(cb)
+            # Discard any remaining buffered data.
+            self._read_buffer = self._write_buffer = None
             # Delete any unfinished callbacks to break up reference cycles.
             self._read_callback = self._write_callback = None
 
@@ -374,7 +376,7 @@ class BaseIOStream(object):
         if self._read_from_buffer():
             return
         else:
-            self._maybe_run_close_callback()
+            self._maybe_finalize()
 
     def _set_read_callback(self, callback):
         assert not self._read_callback, "Already reading"
@@ -545,7 +547,7 @@ class BaseIOStream(object):
     def _maybe_add_error_listener(self):
         if self._state is None and self._pending_callbacks == 0:
             if self.closed():
-                self._maybe_run_close_callback()
+                self._maybe_finalize()
             else:
                 self._add_io_state(ioloop.IOLoop.READ)
 
