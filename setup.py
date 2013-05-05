@@ -97,6 +97,11 @@ http://api.mongodb.org/python/current/installation.html#osx
                                                   "failed."))
 
 
+try:
+    import Cython.Build
+except:
+    Cython = None
+
 kwargs = {}
 
 version = "4.3.dev1"
@@ -130,6 +135,21 @@ if setuptools is not None:
         # until we have more declarative metadata.
         install_requires.append('certifi')
     kwargs['install_requires'] = install_requires
+
+# For quick iteration, run
+# .tox/py27-cython/bin/python setup.py build_ext --inplace
+# (but be sure to remove the .so files afterwards)
+if Cython is not None:
+    kwargs['ext_modules'].extend(Cython.Build.cythonize(
+        ['tornado/*.py', 'tornado/platform/*.py'],
+        exclude=[
+            'tornado/auth.py',  # inspect.getargspec fails on cyfunctions
+            'tornado/gen.py',  # inspect.getargspec fails on cyfunctions
+            # compilation error on TIMEDELTA_ABBREV_DICT, and runtime error
+            # because sys.getframe changes.
+            'tornado/options.py',
+            'tornado/simple_httpclient.py',  # runtime error, __file__
+            ]))
 
 setup(
     name="tornado",
