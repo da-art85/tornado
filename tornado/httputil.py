@@ -420,16 +420,9 @@ def _parseparam(s):
 
 
 def _parse_header(line):
-    r"""Parse a Content-type like header.
+    """Parse a header with MIME-style subparameters.
 
     Return the main content-type and a dictionary of options.
-
-    >>> d = "CD: fd; foo=\"b\\\\a\\\"r\"; file*=utf-8''T%C3%A4st"
-    >>> d = _parse_header(d)[1]
-    >>> d['file'] == r'T\u00e4st'.encode('ascii').decode('unicode_escape')
-    True
-    >>> d['foo']
-    'b\\a"r'
     """
     parts = _parseparam(';' + line)
     key = next(parts)
@@ -445,6 +438,9 @@ def _parse_header(line):
     params.pop(0) # get rid of the dummy again
     pdict = {}
     for name, value in params:
+        # RFC 2231 defines i18n for MIME headers; RFC 5987 defines
+        # a subset for use in HTTP headers (and RFC 6266 specifies that
+        # subset for the Content-Disposition header)
         value = email.utils.collapse_rfc2231_value(value)
         if len(value) >= 2 and value[0] == '"' and value[-1] == '"':
             value = value[1:-1]

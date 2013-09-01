@@ -2,11 +2,12 @@
 
 
 from __future__ import absolute_import, division, print_function, with_statement
-from tornado.httputil import url_concat, parse_multipart_form_data, HTTPHeaders, format_timestamp
+from tornado.httputil import url_concat, parse_multipart_form_data, HTTPHeaders, format_timestamp, _parse_header
 from tornado.escape import utf8
 from tornado.log import gen_log
 from tornado.testing import ExpectLog
 from tornado.test.util import unittest
+from tornado.util import u
 
 import datetime
 import logging
@@ -201,6 +202,36 @@ Foo
         file = files["files"][0]
         self.assertEqual(file["filename"], "ab.txt")
         self.assertEqual(file["body"], b"Foo")
+
+    def test_rfc2231(self):
+        data = b"""\
+--1234
+Content-Disposition: form-data; name="files"; filename*=utf-8''T%C3%A4st
+
+Foo
+--1234--""".replace(b"\n", b"\r\n")
+        args = {}
+        files = {}
+        parse_multipart_form_data(b"1234", data, args, files)
+        file = files["files"][0]
+        self.assertEqual(file["filename"], u('T\xe4st'))
+        self.assertEqual(file["body"], b"Foo")
+
+
+class ParseHeaderTest(unittest.TestCase):
+    # The _parse_header function is also tested with the Content-Disposition
+    # cases in MultipartFormDataTest.
+    def test_rfc2231(self):
+        line = "CD: fd; foo=\"b\\\\a\\\"r\"; file*=utf-8''T%C3%A4st"
+        ctype, params = _parse_header(line)
+        self.assertEqual(params['file'], u('T\xe4st'))
+        self.assertEqual(params['foo'], 'b\\a"r')
+
+    def test_latin1(self):
+        # Non-ascii values in HTTP headers are interpreted as latin1.
+        line = u('CD: fd; file="T\xe4st"')
+        ctype, params = _parse_header(line)
+        self.assertEqual(params['file'], u('T\xe4st'))
 
 
 class HTTPHeadersTest(unittest.TestCase):
