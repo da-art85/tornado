@@ -834,7 +834,9 @@ class StaticFileTest(WebTestCase):
     # The expected MD5 hash of robots.txt, used in tests that call
     # StaticFileHandler.get_version
     robots_txt_hash = b"f71d20196d4caf35b6a670db8c70b03d"
-    static_dir = os.path.join(os.path.dirname(__file__), 'static')
+    def setUp(self):
+        super(StaticFileTest, self).setUp()
+        self.static_dir = os.path.join(os.path.dirname(__file__), 'static')
 
     def get_handlers(self):
         class StaticUrlHandler(RequestHandler):
