@@ -150,13 +150,12 @@ if Cython is not None:
     kwargs['ext_modules'].extend(Cython.Build.cythonize(
         ['tornado/*.py', 'tornado/platform/*.py', 'tornado/test/*.py'],
         exclude=[
-            'tornado/test/concurrent_test.py',  # return_future test fails
-            'tornado/test/gen_test.py',  # many tests fail
             'tornado/test/log_test.py',  # tests fail because of sys.getframe
             'tornado/test/template_test.py',  # __future__ tests don't compile
             'tornado/test/util_test.py',  # __future__ tests
             'tornado/test/runtests.py',  # cython doesn't support __main__?
-            ]))
+            ],
+        compiler_directives=dict(always_allow_keywords=True)))
     kwargs.pop('cmdclass')
 
 setup(
