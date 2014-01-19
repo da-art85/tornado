@@ -204,6 +204,8 @@ def utf8(value):
         )
     return value.encode("utf-8")
 
+from tornado.speedups import utf8
+
 _TO_UNICODE_TYPES = (unicode_type, type(None))
 
 

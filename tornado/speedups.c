@@ -26,8 +26,30 @@ static PyObject* websocket_mask(PyObject* self, PyObject* args) {
     return result;
 }
 
+static PyObject* utf8(PyObject* self, PyObject* args) {
+    PyObject* value;
+
+    if (!PyArg_ParseTuple(args, "O", &value)) {
+        return NULL;
+    }
+
+    if (PyBytes_Check(value) || value == Py_None) {
+        Py_INCREF(value);
+        return value;
+    }
+
+    if (!PyUnicode_Check(value)) {
+        PyErr_Format(PyExc_TypeError,
+            "Expected bytes, unicode, or None; got %r", PyObject_Type(value));
+        return NULL;
+    }
+
+    return PyUnicode_AsUTF8String(value);
+}
+
 static PyMethodDef methods[] = {
     {"websocket_mask",  websocket_mask, METH_VARARGS, ""},
+    {"utf8",  utf8, METH_VARARGS, ""},
     {NULL, NULL, 0, NULL}
 };
 
