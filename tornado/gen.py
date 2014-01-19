@@ -91,6 +91,12 @@ from tornado.concurrent import Future, TracebackFuture
 from tornado.ioloop import IOLoop
 from tornado.stack_context import ExceptionStackContext, wrap
 
+def _is_generator(obj):
+    # cython generates a new generator type for each module without a
+    # common base class :(
+    return (isinstance(obj, types.GeneratorType) or
+            str(type(obj)) == "<type 'generator'>")
+
 
 class KeyReuseError(Exception):
     pass
@@ -147,7 +153,7 @@ def engine(func):
             except (Return, StopIteration) as e:
                 result = getattr(e, 'value', None)
             else:
-                if isinstance(result, types.GeneratorType):
+                if _is_generator(result):
                     def final_callback(value):
                         if value is not None:
                             raise ReturnValueIgnoredError(
@@ -219,7 +225,7 @@ def coroutine(func):
                 future.set_exc_info(sys.exc_info())
                 return future
             else:
-                if isinstance(result, types.GeneratorType):
+                if _is_generator(result):
                     def final_callback(value):
                         deactivate()
                         future.set_result(value)

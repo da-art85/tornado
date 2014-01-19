@@ -150,7 +150,6 @@ if Cython is not None:
     kwargs['ext_modules'].extend(Cython.Build.cythonize(
         ['tornado/*.py', 'tornado/platform/*.py'],
         exclude=[
-            'tornado/auth.py',  # generator does not support item assignment
             # compilation error on TIMEDELTA_ABBREV_DICT, and runtime test
             # failure because sys.getframe changes.
             'tornado/options.py',
