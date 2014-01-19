@@ -73,6 +73,18 @@ from tornado import stack_context
 from tornado.util import basestring_type, exec_in
 
 
+# Table used in timedelta parsing; can't be inlined due to cython limitations.
+_TIMEDELTA_ABBREVS = [
+    ('hours', ['h']),
+    ('minutes', ['m', 'min']),
+    ('seconds', ['s', 'sec']),
+    ('milliseconds', ['ms']),
+    ('microseconds', ['us']),
+    ('days', ['d']),
+    ('weeks', ['w']),
+]
+
+
 class Error(Exception):
     """Exception raised by errors in the options module."""
     pass
@@ -441,16 +453,6 @@ class _Option(object):
             except ValueError:
                 pass
         raise Error('Unrecognized date/time format: %r' % value)
-
-    _TIMEDELTA_ABBREVS = [
-        ('hours', ['h']),
-        ('minutes', ['m', 'min']),
-        ('seconds', ['s', 'sec']),
-        ('milliseconds', ['ms']),
-        ('microseconds', ['us']),
-        ('days', ['d']),
-        ('weeks', ['w']),
-    ]
 
     _TIMEDELTA_ABBREV_DICT = dict(
         (abbrev, full) for full, abbrevs in _TIMEDELTA_ABBREVS

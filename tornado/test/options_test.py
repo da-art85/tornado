@@ -1,10 +1,11 @@
 from __future__ import absolute_import, division, print_function, with_statement
 
 import datetime
+import inspect
 import os
 import sys
 
-from tornado.options import OptionParser, Error
+from tornado.options import OptionParser, Error, define
 from tornado.util import basestring_type
 from tornado.test.util import unittest
 
@@ -140,6 +141,8 @@ class OptionsTest(unittest.TestCase):
         expected = {'a': 1, 'b': 2, 'help': options.help}
         self.assertEqual(expected, options.as_dict())
 
+    @unittest.skipIf(not inspect.isfunction(define),
+                     'options module is cythonized')
     def test_group_dict(self):
         options = OptionParser()
         options.define('a', default=1)

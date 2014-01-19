@@ -150,9 +150,6 @@ if Cython is not None:
     kwargs['ext_modules'].extend(Cython.Build.cythonize(
         ['tornado/*.py', 'tornado/platform/*.py'],
         exclude=[
-            # compilation error on TIMEDELTA_ABBREV_DICT, and runtime test
-            # failure because sys.getframe changes.
-            'tornado/options.py',
             'tornado/simple_httpclient.py',  # runtime error, __file__
             ]))
     kwargs.pop('cmdclass')
