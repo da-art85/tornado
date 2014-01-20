@@ -32,6 +32,7 @@ import time
 import copy
 
 from tornado.escape import native_str, parse_qs_bytes
+from tornado import gen
 from tornado import httputil
 from tornado import iostream
 from tornado.log import gen_log
@@ -154,8 +155,9 @@ class HTTPServer(TCPServer):
                            **kwargs)
 
     def handle_stream(self, stream, address):
-        HTTPConnection(stream, address, self.request_callback,
-                       self.no_keep_alive, self.xheaders, self.protocol)
+        conn = HTTPConnection(stream, address, self.request_callback,
+                              self.no_keep_alive, self.xheaders, self.protocol)
+        conn.process_request()
 
 
 class _BadRequestException(Exception):
@@ -182,11 +184,41 @@ class HTTPConnection(object):
         self.xheaders = xheaders
         self.protocol = protocol
         self._clear_request_state()
-        # Save stack context here, outside of any request.  This keeps
-        # contexts from one request from leaking into the next.
-        self._header_callback = stack_context.wrap(self._on_headers)
-        self.stream.set_close_callback(self._on_connection_close)
-        self.stream.read_until(b"\r\n\r\n", self._header_callback)
+
+    @gen.coroutine
+    def process_request(self):
+        try:
+            header_data = yield self.stream.read_until(b'\r\n\r\n')
+        except iostream.StreamClosedError:
+            return
+        try:
+            request = self._parse_request(header_data)
+
+            content_length = request.headers.get("Content-Length")
+            if content_length:
+                content_length = int(content_length)
+                if content_length > self.stream.max_buffer_size:
+                    raise _BadRequestException("Content-Length too long")
+                if request.headers.get("Expect") == "100-continue":
+                    self.stream.write(b"HTTP/1.1 100 (Continue)\r\n\r\n")
+                request.body = yield self.stream.read_bytes(content_length)
+                if self._request.method in ("POST", "PATCH", "PUT"):
+                    httputil.parse_body_arguments(
+                        self._request.headers.get("Content-Type", ""),
+                        request.body,
+                        self._request.body_arguments, self._request.files)
+
+                    for k, v in self._request.body_arguments.items():
+                        self._request.arguments.setdefault(k, []).extend(v)
+
+            self.request_callback(request)
+        except _BadRequestException as e:
+            gen_log.info("Malformed HTTP request from %r: %s",
+                         self.address, e)
+            self.close()
+            return
+
+
 
     def _clear_request_state(self):
         """Clears the per-request state.
@@ -279,7 +311,7 @@ class HTTPConnection(object):
             # Use a try/except instead of checking stream.closed()
             # directly, because in some cases the stream doesn't discover
             # that it's closed until you try to read from it.
-            self.stream.read_until(b"\r\n\r\n", self._header_callback)
+            self.stream.io_loop.add_callback(self.process_request)
 
             # Turn Nagle's algorithm back on, leaving the stream in its
             # default state for the next request.
@@ -287,60 +319,36 @@ class HTTPConnection(object):
         except iostream.StreamClosedError:
             self.close()
 
-    def _on_headers(self, data):
+    def _parse_request(self, data):
+        data = native_str(data.decode('latin1'))
+        eol = data.find("\r\n")
+        start_line = data[:eol]
         try:
-            data = native_str(data.decode('latin1'))
-            eol = data.find("\r\n")
-            start_line = data[:eol]
-            try:
-                method, uri, version = start_line.split(" ")
-            except ValueError:
-                raise _BadRequestException("Malformed HTTP request line")
-            if not version.startswith("HTTP/"):
-                raise _BadRequestException("Malformed HTTP version in HTTP Request-Line")
-            try:
-                headers = httputil.HTTPHeaders.parse(data[eol:])
-            except ValueError:
-                # Probably from split() if there was no ':' in the line
-                raise _BadRequestException("Malformed HTTP headers")
+            method, uri, version = start_line.split(" ")
+        except ValueError:
+            raise _BadRequestException("Malformed HTTP request line")
+        if not version.startswith("HTTP/"):
+            raise _BadRequestException("Malformed HTTP version in HTTP Request-Line")
+        try:
+            headers = httputil.HTTPHeaders.parse(data[eol:])
+        except ValueError:
+            # Probably from split() if there was no ':' in the line
+            raise _BadRequestException("Malformed HTTP headers")
 
-            # HTTPRequest wants an IP, not a full socket address
-            if self.address_family in (socket.AF_INET, socket.AF_INET6):
-                remote_ip = self.address[0]
-            else:
-                # Unix (or other) socket; fake the remote address
-                remote_ip = '0.0.0.0'
+        # HTTPRequest wants an IP, not a full socket address
+        if self.address_family in (socket.AF_INET, socket.AF_INET6):
+            remote_ip = self.address[0]
+        else:
+            # Unix (or other) socket; fake the remote address
+            remote_ip = '0.0.0.0'
 
-            self._request = HTTPRequest(
-                connection=self, method=method, uri=uri, version=version,
-                headers=headers, remote_ip=remote_ip, protocol=self.protocol)
+        self._request = HTTPRequest(
+            connection=self, method=method, uri=uri, version=version,
+            headers=headers, remote_ip=remote_ip, protocol=self.protocol)
 
-            content_length = headers.get("Content-Length")
-            if content_length:
-                content_length = int(content_length)
-                if content_length > self.stream.max_buffer_size:
-                    raise _BadRequestException("Content-Length too long")
-                if headers.get("Expect") == "100-continue":
-                    self.stream.write(b"HTTP/1.1 100 (Continue)\r\n\r\n")
-                self.stream.read_bytes(content_length, self._on_request_body)
-                return
-
-            self.request_callback(self._request)
-        except _BadRequestException as e:
-            gen_log.info("Malformed HTTP request from %r: %s",
-                         self.address, e)
-            self.close()
-            return
+        return self._request
 
     def _on_request_body(self, data):
-        self._request.body = data
-        if self._request.method in ("POST", "PATCH", "PUT"):
-            httputil.parse_body_arguments(
-                self._request.headers.get("Content-Type", ""), data,
-                self._request.body_arguments, self._request.files)
-
-            for k, v in self._request.body_arguments.items():
-                self._request.arguments.setdefault(k, []).extend(v)
         self.request_callback(self._request)
 
 
