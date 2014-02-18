@@ -30,6 +30,7 @@ import struct
 import time
 import tornado.escape
 import tornado.web
+import zlib
 
 from tornado.concurrent import TracebackFuture
 from tornado.escape import utf8, native_str, to_unicode
@@ -530,12 +531,35 @@ class WebSocketProtocol76(WebSocketProtocol):
                 time.time() + 5, self._abort)
 
 
+class PerMessageDeflate(object):
+    def __init__(self):
+        self._compressor = zlib.compressobj(-1, zlib.DEFLATED, -zlib.MAX_WBITS)
+        self._decompressor = zlib.decompressobj(-zlib.MAX_WBITS)
+
+    def compress(self, data):
+        data = (self._compressor.compress(data) +
+                self._compressor.flush(zlib.Z_SYNC_FLUSH))
+        assert data.endswith(b'\x00\x00\xff\xff')
+        return data[:-4]
+
+    def decompress(self, data):
+        return self._decompressor.decompress(data + b'\x00\x00\xff\xff')
+
+
 class WebSocketProtocol13(WebSocketProtocol):
     """Implementation of the WebSocket protocol from RFC 6455.
 
     This class supports versions 7 and 8 of the protocol in addition to the
     final version 13.
     """
+    # Bit masks for the first byte of a frame.
+    FIN = 0x80
+    RSV1 = 0x40
+    RSV2 = 0x20
+    RSV3 = 0x10
+    RSV_MASK = RSV1 | RSV2 | RSV3
+    OPCODE_MASK = 0x0f
+
     def __init__(self, handler, mask_outgoing=False):
         WebSocketProtocol.__init__(self, handler)
         self.mask_outgoing = mask_outgoing
@@ -547,6 +571,8 @@ class WebSocketProtocol13(WebSocketProtocol):
         self._fragmented_message_buffer = None
         self._fragmented_message_opcode = None
         self._waiting = None
+        self._compressor = None
+        self._frame_compressed = None
 
     def accept_connection(self):
         try:
@@ -591,23 +617,35 @@ class WebSocketProtocol13(WebSocketProtocol):
                 assert selected in subprotocols
                 subprotocol_header = "Sec-WebSocket-Protocol: %s\r\n" % selected
 
+        extension_header = ''
+        extensions = self.request.headers.get("Sec-WebSocket-Extensions", '')
+        extensions = [httputil._parse_header(e.strip())
+                      for e in extensions.split(',')]
+        if extensions:
+            for ext in extensions:
+                if ext[0] == 'permessage-deflate':
+                    extension_header = 'Sec-WebSocket-Extensions: permessage-deflate\r\n'
+                    self._compressor = PerMessageDeflate()
+                    break
+
         self.stream.write(tornado.escape.utf8(
             "HTTP/1.1 101 Switching Protocols\r\n"
             "Upgrade: websocket\r\n"
             "Connection: Upgrade\r\n"
             "Sec-WebSocket-Accept: %s\r\n"
-            "%s"
-            "\r\n" % (self._challenge_response(), subprotocol_header)))
+            "%s%s"
+            "\r\n" % (self._challenge_response(),
+                      subprotocol_header, extension_header)))
 
         self.async_callback(self.handler.open)(*self.handler.open_args, **self.handler.open_kwargs)
         self._receive_frame()
 
-    def _write_frame(self, fin, opcode, data):
+    def _write_frame(self, fin, opcode, data, flags=0):
         if fin:
-            finbit = 0x80
+            finbit = self.FIN
         else:
             finbit = 0
-        frame = struct.pack("B", finbit | opcode)
+        frame = struct.pack("B", finbit | opcode | flags)
         l = len(data)
         if self.mask_outgoing:
             mask_bit = 0x80
@@ -633,8 +671,12 @@ class WebSocketProtocol13(WebSocketProtocol):
             opcode = 0x1
         message = tornado.escape.utf8(message)
         assert isinstance(message, bytes_type)
+        flags = 0
+        if self._compressor:
+            message = self._compressor.compress(message)
+            flags |= self.RSV1
         try:
-            self._write_frame(True, opcode, message)
+            self._write_frame(True, opcode, message, flags=flags)
         except StreamClosedError:
             self._abort()
 
@@ -651,10 +693,13 @@ class WebSocketProtocol13(WebSocketProtocol):
 
     def _on_frame_start(self, data):
         header, payloadlen = struct.unpack("BB", data)
-        self._final_frame = header & 0x80
-        reserved_bits = header & 0x70
-        self._frame_opcode = header & 0xf
+        self._final_frame = header & self.FIN
+        reserved_bits = header & self.RSV_MASK
+        self._frame_opcode = header & self.OPCODE_MASK
         self._frame_opcode_is_control = self._frame_opcode & 0x8
+        if self._compressor is not None:
+            self._frame_compressed = bool(reserved_bits & self.RSV1)
+            reserved_bits &= ~self.RSV1
         if reserved_bits:
             # client is using as-yet-undefined extensions; abort
             self._abort()
@@ -749,6 +794,9 @@ class WebSocketProtocol13(WebSocketProtocol):
     def _handle_message(self, opcode, data):
         if self.client_terminated:
             return
+
+        if self._frame_compressed:
+            data = self._compressor.decompress(data)
 
         if opcode == 0x1:
             # UTF-8 data
