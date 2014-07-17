@@ -137,11 +137,12 @@ if Cython is not None:
     kwargs['ext_modules'].extend(Cython.Build.cythonize(
         ['tornado/*.py', 'tornado/platform/*.py'],
         exclude=[
-            'tornado/auth.py',  # generator does not support item assignment
+            # HTTP1ServerConnection.close miscompiles and raises SystemError
+            # when an error is thrown into it at the yield.
+            'tornado/http1connection.py',
             # compilation error on TIMEDELTA_ABBREV_DICT, and runtime test
             # failure because sys.getframe changes.
             'tornado/options.py',
-            'tornado/simple_httpclient.py',  # runtime error, __file__
             ]))
     kwargs.pop('cmdclass')
 
