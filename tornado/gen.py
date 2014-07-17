@@ -58,6 +58,12 @@ from tornado.concurrent import Future, TracebackFuture, is_future, chain_future
 from tornado.ioloop import IOLoop
 from tornado import stack_context
 
+def _is_generator(obj):
+    # cython generates a new generator type for each module without a
+    # common base class :(
+    return (isinstance(obj, types.GeneratorType) or
+            str(type(obj)) == "<type 'generator'>")
+
 
 class KeyReuseError(Exception):
     pass
@@ -164,7 +170,7 @@ def _make_coroutine_wrapper(func, replace_callback):
             future.set_exc_info(sys.exc_info())
             return future
         else:
-            if isinstance(result, types.GeneratorType):
+            if _is_generator(result):
                 # Inline the first iteration of Runner.run.  This lets us
                 # avoid the cost of creating a Runner when the coroutine
                 # never actually yields, which in turn allows us to
