@@ -26,3 +26,7 @@ In progress
   `.WebSocketHandler.get_compression_options` to enable on the server
   side, and use the ``compression_options`` keyword argument to
   `.websocket_connect` on the client side.
+* `.RequestHandler.locale` now has a property setter.
+* `.RequestHandler.initialize` is now called earlier, so that
+  `~.RequestHandler.clear` and `~.RequestHandler.set_default_headers`
+  can assume it has been called.

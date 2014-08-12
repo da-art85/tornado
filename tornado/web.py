@@ -172,9 +172,9 @@ class RequestHandler(object):
         self.ui["_tt_modules"] = _UIModuleNamespace(self,
                                                     application.ui_modules)
         self.ui["modules"] = self.ui["_tt_modules"]
-        self.clear()
         self.request.connection.set_close_callback(self.on_connection_close)
         self.initialize(**kwargs)
+        self.clear()
 
     def initialize(self):
         """Hook for subclass initialization.
@@ -956,12 +956,15 @@ class RequestHandler(object):
 
     @property
     def locale(self):
-        """The local for the current session.
+        """The locale for the current session.
 
         Determined by either `get_user_locale`, which you can override to
         set the locale based on, e.g., a user preference stored in a
         database, or `get_browser_locale`, which uses the ``Accept-Language``
         header.
+
+        .. versionchanged: 4.1
+           Added a property setter.
         """
         if not hasattr(self, "_locale"):
             self._locale = self.get_user_locale()
@@ -969,6 +972,10 @@ class RequestHandler(object):
                 self._locale = self.get_browser_locale()
                 assert self._locale
         return self._locale
+
+    @locale.setter
+    def locale(self, value):
+        self._locale = value
 
     def get_user_locale(self):
         """Override to determine the locale from the authenticated user.
@@ -1989,10 +1996,10 @@ class MissingArgumentError(HTTPError):
 class ErrorHandler(RequestHandler):
     """Generates an error response with ``status_code`` for all requests."""
     def initialize(self, status_code):
-        self.set_status(status_code)
+        self.__status_code = status_code
 
     def prepare(self):
-        raise HTTPError(self._status_code)
+        raise HTTPError(self.__status_code)
 
     def check_xsrf_cookie(self):
         # POSTs to an ErrorHandler don't actually have side effects,
