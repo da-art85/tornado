@@ -10,12 +10,14 @@ from tornado.web import RequestHandler, Application
 define('port', default=8888)
 define('debug', default=False)
 
+
 class FormHandler(RequestHandler):
     def get(self):
         self.render("form.html")
 
     def get_user_locale(self):
         return tornado.locale.get(self.get_argument("locale", "en_US"))
+
 
 def main():
     parse_command_line()

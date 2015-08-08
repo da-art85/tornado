@@ -61,6 +61,7 @@ _supported_locales = frozenset([_default_locale])
 _use_gettext = False
 CONTEXT_SEPARATOR = "\x04"
 
+
 def get(*locale_codes):
     """Returns the closest match for the given locale codes.
 
@@ -504,8 +505,8 @@ class GettextLocale(Locale):
         if plural_message is not None:
             assert count is not None
             msgs_with_ctxt = ("%s%s%s" % (context, CONTEXT_SEPARATOR, message),
-                          "%s%s%s" % (context, CONTEXT_SEPARATOR, plural_message),
-                          count)
+                              "%s%s%s" % (context, CONTEXT_SEPARATOR, plural_message),
+                              count)
             result = self.ngettext(*msgs_with_ctxt)
             if CONTEXT_SEPARATOR in result:
                 # Translation not found
@@ -531,6 +532,7 @@ class PseudoLocale(Locale):
                 message = plural_message
         return self.pseudolocalize(message)
 
+
 class BracketPseudoLocale(PseudoLocale):
     CODE = 'xx_BR'
 
@@ -538,12 +540,13 @@ class BracketPseudoLocale(PseudoLocale):
     def pseudolocalize(message):
         return '[ %s ]' % message
 
+
 class AccentPseudoLocale(PseudoLocale):
     CODE = 'xx_AC'
 
     def __init__(self):
         self.map = {}
-        for before, after in PSEUDOLOCALE_ACCENT_MAPS.iteritems():
+        for before, after in PSEUDOLOCALE_ACCENT_MAPS.items():
             self.map.update(zip(before, after))
         super(AccentPseudoLocale, self).__init__()
 
@@ -551,12 +554,13 @@ class AccentPseudoLocale(PseudoLocale):
         return re.sub('.',
                       lambda m: self.map.get(m.group(0), m.group(0)), message)
 
+
 class UpsideDownPseudoLocale(PseudoLocale):
     CODE = 'xx_UD'
 
     def __init__(self):
         self.map = {}
-        for before, after in PSEUDOLOCALE_UPSIDEDOWN_MAPS.iteritems():
+        for before, after in PSEUDOLOCALE_UPSIDEDOWN_MAPS.items():
             self.map.update(zip(before, after))
         super(UpsideDownPseudoLocale, self).__init__()
 
@@ -565,8 +569,10 @@ class UpsideDownPseudoLocale(PseudoLocale):
             '.', lambda m: self.map.get(m.group(0), m.group(0)), message)
         return u''.join(reversed(message))
 
+
 class FakeBidiPseudoLocale(PseudoLocale):
     CODE = 'xx_BI'
+
     def __init__(self):
         super(FakeBidiPseudoLocale, self).__init__()
         self.rtl = True
@@ -586,12 +592,13 @@ class FakeBidiPseudoLocale(PseudoLocale):
             chars.append(char)
         return u''.join(chars)
 
+
 class UpsideDownBidiPseudoLocale(PseudoLocale):
     CODE = 'xx_UB'
 
     def __init__(self):
         self.map = {}
-        for before, after in PSEUDOLOCALE_UPSIDEDOWN_MAPS.iteritems():
+        for before, after in PSEUDOLOCALE_UPSIDEDOWN_MAPS.items():
             self.map.update(zip(before, after))
         for char in '()[]{}<>':
             # directional characters are reversed by the rtl processing
@@ -605,6 +612,7 @@ class UpsideDownBidiPseudoLocale(PseudoLocale):
             '.', lambda m: self.map.get(m.group(0), m.group(0)), message)
         # Don't reverse - rtl does that.
         return message
+
 
 class ExpanderPseudoLocale(PseudoLocale):
     CODE = 'xx_EX'
@@ -634,6 +642,7 @@ class ExpanderPseudoLocale(PseudoLocale):
             chars_needed -= len(chunks[-1]) + 1
         return u' '.join(chunks)
 
+
 class AllPseudoLocale(PseudoLocale):
     CODE = 'xx_AL'
 
@@ -646,6 +655,7 @@ class AllPseudoLocale(PseudoLocale):
         message = ExpanderPseudoLocale.pseudolocalize(message)
         message = BracketPseudoLocale.pseudolocalize(message)
         return message
+
 
 def load_pseudo_translations():
     if not hasattr(Locale, '_cache'):
