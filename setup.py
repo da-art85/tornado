@@ -147,7 +147,7 @@ if Cython is not None:
             #'tornado/gen.py',  # inspect.getargspec fails on cyfunctions
             # compilation error on TIMEDELTA_ABBREV_DICT, and runtime error
             # because sys.getframe changes.
-            'tornado/options.py',
+            #'tornado/options.py',
             #'tornado/simple_httpclient.py',  # runtime error, __file__
             ]))
 

@@ -465,20 +465,6 @@ class _Option(object):
         if self.callback is not None:
             self.callback(self._value)
 
-    # Supported date/time formats in our options
-    _DATETIME_FORMATS = [
-        "%a %b %d %H:%M:%S %Y",
-        "%Y-%m-%d %H:%M:%S",
-        "%Y-%m-%d %H:%M",
-        "%Y-%m-%dT%H:%M",
-        "%Y%m%d %H:%M:%S",
-        "%Y%m%d %H:%M",
-        "%Y-%m-%d",
-        "%Y%m%d",
-        "%H:%M:%S",
-        "%H:%M",
-    ]
-
     def _parse_datetime(self, value):
         for format in self._DATETIME_FORMATS:
             try:
@@ -487,19 +473,17 @@ class _Option(object):
                 pass
         raise Error('Unrecognized date/time format: %r' % value)
 
-    _TIMEDELTA_ABBREVS = [
-        ('hours', ['h']),
-        ('minutes', ['m', 'min']),
-        ('seconds', ['s', 'sec']),
-        ('milliseconds', ['ms']),
-        ('microseconds', ['us']),
-        ('days', ['d']),
-        ('weeks', ['w']),
-    ]
-
-    _TIMEDELTA_ABBREV_DICT = dict(
-        (abbrev, full) for full, abbrevs in _TIMEDELTA_ABBREVS
-        for abbrev in abbrevs)
+    _TIMEDELTA_ABBREV_DICT = {
+        'h': 'hours',
+        'm': 'minutes',
+        'min': 'minutes',
+        's': 'seconds',
+        'sec': 'seconds',
+        'ms': 'milliseconds',
+        'us': 'microseconds',
+        'd': 'days',
+        'w': 'weeks',
+    }
 
     _FLOAT_PATTERN = r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?'
 
