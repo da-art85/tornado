@@ -84,20 +84,8 @@ from tornado.log import gen_log
 from tornado.stack_context import ExceptionStackContext
 from tornado.util import unicode_type, ArgReplacer
 
-try:
-    import urlparse  # py2
-except ImportError:
-    import urllib.parse as urlparse  # py3
-
-try:
-    import urllib.parse as urllib_parse  # py3
-except ImportError:
-    import urllib as urllib_parse  # py2
-
-try:
-    long  # py2
-except NameError:
-    long = int  # py3
+import six.moves.urllib.parse as urlparse
+urllib_parse = urlparse
 
 
 class AuthError(Exception):

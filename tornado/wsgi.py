@@ -43,11 +43,7 @@ from tornado import web
 from tornado.escape import native_str
 from tornado.util import unicode_type
 
-
-try:
-    import urllib.parse as urllib_parse  # py3
-except ImportError:
-    import urllib as urllib_parse
+import six.moves.urllib.parse as urllib_parse
 
 # PEP 3333 specifies that WSGI on python 3 generally deals with byte strings
 # that are smuggled inside objects of type unicode (via the latin1 encoding).

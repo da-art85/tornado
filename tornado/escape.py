@@ -22,32 +22,23 @@ have crept in over time.
 
 from __future__ import absolute_import, division, print_function, with_statement
 
+import json
 import re
 import sys
 
 from tornado.util import unicode_type, basestring_type
 
-try:
-    from urllib.parse import parse_qs as _parse_qs  # py3
-except ImportError:
-    from urlparse import parse_qs as _parse_qs  # Python 2.6+
+from six.moves.urllib.parse import parse_qs as _parse_qs
+from six import unichr
+from six.moves import html_entities as htmlentitydefs
 
 try:
-    import htmlentitydefs  # py2
-except ImportError:
-    import html.entities as htmlentitydefs  # py3
-
-try:
+    # six.moves.urllib.parse is almost what we want here but it
+    # doesn't expose unquote_to_bytes.
     import urllib.parse as urllib_parse  # py3
 except ImportError:
     import urllib as urllib_parse  # py2
 
-import json
-
-try:
-    unichr
-except NameError:
-    unichr = chr
 
 _XHTML_ESCAPE_RE = re.compile('[&<>"\']')
 _XHTML_ESCAPE_DICT = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;',

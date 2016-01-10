@@ -38,15 +38,8 @@ from tornado import simple_httpclient
 from tornado.tcpclient import TCPClient
 from tornado.util import _websocket_mask
 
-try:
-    from urllib.parse import urlparse  # py2
-except ImportError:
-    from urlparse import urlparse  # py3
-
-try:
-    xrange  # py2
-except NameError:
-    xrange = range  # py3
+from six.moves.urllib.parse import urlparse
+from six.moves import range as xrange
 
 
 class WebSocketError(Exception):

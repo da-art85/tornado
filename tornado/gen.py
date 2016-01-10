@@ -80,6 +80,7 @@ import collections
 import functools
 import itertools
 import os
+import six
 import sys
 import textwrap
 import types
@@ -123,11 +124,6 @@ except ImportError:
 
     def isawaitable(x):
         return False
-
-try:
-    import builtins  # py3
-except ImportError:
-    import __builtin__ as builtins
 
 
 class KeyReuseError(Exception):
@@ -451,7 +447,7 @@ class WaitIterator(object):
     def __anext__(self):
         if self.done():
             # Lookup by name to silence pyflakes on older versions.
-            raise getattr(builtins, 'StopAsyncIteration')()
+            raise getattr(six.moves.builtins, 'StopAsyncIteration')()
         return self.next()
 
 

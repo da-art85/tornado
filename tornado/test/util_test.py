@@ -8,10 +8,7 @@ from tornado.escape import utf8
 from tornado.util import raise_exc_info, Configurable, exec_in, ArgReplacer, timedelta_to_seconds, import_object
 from tornado.test.util import unittest
 
-try:
-    from cStringIO import StringIO  # py2
-except ImportError:
-    from io import StringIO  # py3
+from six.moves import cStringIO as StringIO
 
 
 class RaiseExcInfoTest(unittest.TestCase):

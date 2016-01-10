@@ -93,21 +93,9 @@ from tornado.util import (import_object, ObjectDict, raise_exc_info,
                           unicode_type, _websocket_mask)
 from tornado.httputil import split_host_and_port
 
-
-try:
-    import Cookie  # py2
-except ImportError:
-    import http.cookies as Cookie  # py3
-
-try:
-    import urlparse  # py2
-except ImportError:
-    import urllib.parse as urlparse  # py3
-
-try:
-    from urllib import urlencode  # py2
-except ImportError:
-    from urllib.parse import urlencode  # py3
+import six.moves.http_cookies as Cookie
+import six.moves.urllib.parse as urlparse
+from six.moves.urllib.parse import urlencode
 
 
 MIN_SUPPORTED_SIGNED_VALUE_VERSION = 1

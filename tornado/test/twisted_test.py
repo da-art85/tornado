@@ -52,10 +52,7 @@ try:
 except ImportError:
     have_twisted_web = False
 
-try:
-    import thread  # py2
-except ImportError:
-    import _thread as thread  # py3
+from six.moves import _thread as thread
 
 from tornado.escape import utf8
 from tornado import gen

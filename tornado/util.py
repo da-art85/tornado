@@ -14,14 +14,9 @@ from __future__ import absolute_import, division, print_function, with_statement
 
 import array
 import os
+import six
 import sys
 import zlib
-
-
-try:
-    xrange  # py2
-except NameError:
-    xrange = range  # py3
 
 # inspect.getargspec() raises DeprecationWarnings in Python 3.5.
 # The two functions have compatible interfaces for the parts we need.
@@ -83,15 +78,8 @@ class GzipDecompressor(object):
         """
         return self.decompressobj.flush()
 
-
-if not isinstance(b'', type('')):
-    unicode_type = str
-    basestring_type = str
-else:
-    # These names don't exist in py3, so use noqa comments to disable
-    # warnings in flake8.
-    unicode_type = unicode  # noqa
-    basestring_type = basestring  # noqa
+unicode_type = six.text_type
+basestring_type = six.string_types
 
 
 def import_object(name):
@@ -130,28 +118,17 @@ def import_object(name):
 # Left here in case anyone outside Tornado is using it.
 bytes_type = bytes
 
-if sys.version_info > (3,):
-    exec("""
-def raise_exc_info(exc_info):
-    raise exc_info[1].with_traceback(exc_info[2])
 
 def exec_in(code, glob, loc=None):
-    if isinstance(code, str):
-        code = compile(code, '<string>', 'exec', dont_inherit=True)
-    exec(code, glob, loc)
-""")
-else:
-    exec("""
-def raise_exc_info(exc_info):
-    raise exc_info[0], exc_info[1], exc_info[2]
-
-def exec_in(code, glob, loc=None):
-    if isinstance(code, basestring):
+    if isinstance(code, basestring_type):
         # exec(string) inherits the caller's future imports; compile
         # the string first to prevent that.
         code = compile(code, '<string>', 'exec', dont_inherit=True)
-    exec code in glob, loc
-""")
+    six.exec_(code, glob, loc)
+
+
+def raise_exc_info(exc_info):
+    six.reraise(*exc_info)
 
 
 def errno_from_exception(e):
@@ -349,7 +326,7 @@ def _websocket_mask_python(mask, data):
     """
     mask = array.array("B", mask)
     unmasked = array.array("B", data)
-    for i in xrange(len(data)):
+    for i in six.moves.range(len(data)):
         unmasked[i] = unmasked[i] ^ mask[i % 4]
     if hasattr(unmasked, 'tobytes'):
         # tostring was deprecated in py32.  It hasn't been removed,

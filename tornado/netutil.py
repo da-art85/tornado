@@ -29,6 +29,8 @@ from tornado.ioloop import IOLoop
 from tornado.platform.auto import set_close_exec
 from tornado.util import Configurable, errno_from_exception
 
+from six.moves import range as xrange
+
 try:
     import ssl
 except ImportError:
@@ -43,11 +45,6 @@ except ImportError:
         certifi = None
     else:
         raise
-
-try:
-    xrange  # py2
-except NameError:
-    xrange = range  # py3
 
 if hasattr(ssl, 'match_hostname') and hasattr(ssl, 'CertificateError'):  # python 3.2+
     ssl_match_hostname = ssl.match_hostname

@@ -125,7 +125,7 @@ if (platform.python_implementation() == 'CPython' and
 
 if setuptools is not None:
     # If setuptools is not available, you're on your own for dependencies.
-    install_requires = []
+    install_requires = ['six']
     if sys.version_info < (2, 7):
         # Only needed indirectly, for singledispatch.
         install_requires.append('ordereddict')

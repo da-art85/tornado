@@ -21,11 +21,7 @@ import socket
 import sys
 from io import BytesIO
 
-
-try:
-    import urlparse  # py2
-except ImportError:
-    import urllib.parse as urlparse  # py3
+import six.moves.urllib.parse as urlparse
 
 try:
     import ssl

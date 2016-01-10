@@ -27,10 +27,7 @@ import os
 import re
 import socket
 
-try:
-    import urllib.parse as urllib_parse  # py3
-except ImportError:
-    import urllib as urllib_parse  # py2
+import six.moves.urllib.parse as urllib_parse
 
 wsgi_safe_tests = []
 

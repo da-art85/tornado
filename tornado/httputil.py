@@ -35,24 +35,13 @@ from tornado.escape import native_str, parse_qs_bytes, utf8
 from tornado.log import gen_log
 from tornado.util import ObjectDict
 
-try:
-    import Cookie  # py2
-except ImportError:
-    import http.cookies as Cookie  # py3
-
-try:
-    from httplib import responses  # py2
-except ImportError:
-    from http.client import responses  # py3
+from six.moves import http_cookies as Cookie
+from six.moves.http_client import responses
+from six.moves.urllib.parse import urlencode
 
 # responses is unused in this file, but we re-export it to other files.
 # Reference it so pyflakes doesn't complain.
 responses
-
-try:
-    from urllib import urlencode  # py2
-except ImportError:
-    from urllib.parse import urlencode  # py3
 
 try:
     from ssl import SSLError

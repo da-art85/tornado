@@ -42,10 +42,7 @@ import signal
 import socket
 import sys
 
-try:
-    from cStringIO import StringIO  # py2
-except ImportError:
-    from io import StringIO  # py3
+from six.moves import cStringIO as StringIO
 
 try:
     from collections.abc import Generator as GeneratorType  # py35+

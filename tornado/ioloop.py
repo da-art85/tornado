@@ -48,15 +48,12 @@ from tornado.log import app_log, gen_log
 from tornado import stack_context
 from tornado.util import Configurable, errno_from_exception, timedelta_to_seconds
 
+from six.moves import _thread as thread
+
 try:
     import signal
 except ImportError:
     signal = None
-
-try:
-    import thread  # py2
-except ImportError:
-    import _thread as thread  # py3
 
 from tornado.platform.auto import set_close_exec, Waker
 
