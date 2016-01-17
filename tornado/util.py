@@ -32,25 +32,49 @@ else:
 # Aliases for types that are spelled differently in different Python
 # versions. bytes_type is deprecated and no longer used in Tornado
 # itself but is left in case anyone outside Tornado is using it.
-unicode_type = type(u'')
 bytes_type = bytes
 if PY3:
+    # Note that unicode_type could be defined as type(u'') in both py2
+    # and py3, but doing it this way allows it to be used in type
+    # comments.
+    unicode_type = str
     basestring_type = str
 else:
-    # The name basestring doesn't exist in py3 so silence flake8.
+    # These names don't exist in py3 so silence flake8.
+    unicode_type = unicode  # noqa
     basestring_type = basestring  # noqa
+
+try:
+    import typing
+    from typing import cast
+
+    if PY3:
+        StringTypes = str
+    else:
+        StringTypes = typing.Union[unicode, bytes]  # noqa
+
+    # Additional modules used only in type comments.
+    import datetime, types  # noqa
+except ImportError:
+    typing = None
+    StringTypes = None  # type: ignore
+
+    def cast(typ, x):
+        return x
 
 
 class ObjectDict(dict):
     """Makes a dictionary behave like an object, with attribute-style access.
     """
     def __getattr__(self, name):
+        # type: (str) -> typing.Any
         try:
             return self[name]
         except KeyError:
             raise AttributeError(name)
 
     def __setattr__(self, name, value):
+        # type: (str, typing.Any) -> None
         self[name] = value
 
 
@@ -95,6 +119,7 @@ class GzipDecompressor(object):
 
 
 def import_object(name):
+    # type: (StringTypes) -> typing.Any
     """Imports an object by name.
 
     import_object('x') is equivalent to 'import x'.
@@ -112,9 +137,11 @@ def import_object(name):
         ...
     ImportError: No module named missing_module
     """
-    if isinstance(name, unicode_type) and str is not unicode_type:
-        # On python 2 a byte string is required.
-        name = name.encode('utf-8')
+    if not PY3:
+        if isinstance(name, unicode_type):
+            # On python 2 a byte string is required.
+            name = name.encode('utf-8')
+    name = cast(str, name)
     if name.count('.') == 0:
         return __import__(name, None, None)
 
@@ -128,10 +155,12 @@ def import_object(name):
 
 # Stubs to make mypy happy (and later for actual type-checking).
 def raise_exc_info(exc_info):
+    # type: (typing.Tuple[type, BaseException, types.TracebackType]) -> None
     pass
 
 
 def exec_in(code, glob, loc=None):
+    # type: (typing.Union[str, types.CodeType], typing.Dict[str, typing.Any], typing.Mapping[str, typing.Any]) -> None
     pass
 
 
@@ -160,6 +189,7 @@ def exec_in(code, glob, loc=None):
 
 
 def errno_from_exception(e):
+    # type: (Exception) -> typing.Optional[int]
     """Provides the errno from an Exception object.
 
     There are cases that the errno attribute was not set so we pull
@@ -170,7 +200,7 @@ def errno_from_exception(e):
     """
 
     if hasattr(e, 'errno'):
-        return e.errno
+        return e.errno  # type: ignore
     elif e.args:
         return e.args[0]
     else:
@@ -198,7 +228,7 @@ class Configurable(object):
     method `initialize` instead of ``__init__``.
     """
     __impl_class = None  # type: type
-    __impl_kwargs = None  # type: dict
+    __impl_kwargs = None  # type: typing.Dict[str, typing.Any]
 
     def __new__(cls, *args, **kwargs):
         base = cls.configurable_base()
@@ -219,6 +249,7 @@ class Configurable(object):
 
     @classmethod
     def configurable_base(cls):
+        # type: () -> type
         """Returns the base class of a configurable hierarchy.
 
         This will normally return the class in which it is defined.
@@ -228,6 +259,7 @@ class Configurable(object):
 
     @classmethod
     def configurable_default(cls):
+        # type: () -> type
         """Returns the implementation class to be used if none is configured."""
         raise NotImplementedError()
 
@@ -242,6 +274,7 @@ class Configurable(object):
 
     @classmethod
     def configure(cls, impl, **kwargs):
+        # type: (typing.Union[type, str], **dict) -> None
         """Sets the class to use when the base class is instantiated.
 
         Keyword arguments will be saved and added to the arguments passed
@@ -249,15 +282,17 @@ class Configurable(object):
         some parameters.
         """
         base = cls.configurable_base()
-        if isinstance(impl, (unicode_type, bytes)):
+        if isinstance(impl, basestring_type):
             impl = import_object(impl)
-        if impl is not None and not issubclass(impl, cls):
-            raise ValueError("Invalid subclass of %s" % cls)
+        if isinstance(impl, type):
+            if not issubclass(impl, cls):
+                raise ValueError("Invalid subclass of %s" % cls)
         base.__impl_class = impl
         base.__impl_kwargs = kwargs
 
     @classmethod
     def configured_class(cls):
+        # type: () -> type
         """Returns the currently configured class."""
         base = cls.configurable_base()
         if cls.__impl_class is None:
@@ -266,11 +301,13 @@ class Configurable(object):
 
     @classmethod
     def _save_configuration(cls):
+        # type: () -> tuple
         base = cls.configurable_base()
         return (base.__impl_class, base.__impl_kwargs)
 
     @classmethod
     def _restore_configuration(cls, saved):
+        # type: (tuple) -> None
         base = cls.configurable_base()
         base.__impl_class = saved[0]
         base.__impl_kwargs = saved[1]
@@ -284,6 +321,7 @@ class ArgReplacer(object):
     and similar wrappers.
     """
     def __init__(self, func, name):
+        # type (typing.Callable, str) -> None
         self.name = name
         try:
             self.arg_pos = self._getargnames(func).index(name)
@@ -292,6 +330,7 @@ class ArgReplacer(object):
             self.arg_pos = None
 
     def _getargnames(self, func):
+        # type: (typing.Callable[[typing.Any], typing.Any]) -> typing.List[str]
         try:
             return getargspec(func).args
         except TypeError:
@@ -302,11 +341,12 @@ class ArgReplacer(object):
                 # getargspec that we need here. Note that for static
                 # functions the @cython.binding(True) decorator must
                 # be used (for methods it works out of the box).
-                code = func.func_code
+                code = func.func_code  # type: ignore
                 return code.co_varnames[:code.co_argcount]
             raise
 
     def get_old_value(self, args, kwargs, default=None):
+        # type: (typing.Sequence[typing.Any], dict, typing.Any) -> typing.Any
         """Returns the old value of the named argument without replacing it.
 
         Returns ``default`` if the argument is not present.
@@ -317,6 +357,7 @@ class ArgReplacer(object):
             return kwargs.get(self.name, default)
 
     def replace(self, new_value, args, kwargs):
+        # type: (object, typing.Sequence[typing.Any], dict) -> typing.Tuple[typing.Any, typing.Sequence[typing.Any], dict]
         """Replace the named argument in ``args, kwargs`` with ``new_value``.
 
         Returns ``(old_value, args, kwargs)``.  The returned ``args`` and
@@ -339,11 +380,13 @@ class ArgReplacer(object):
 
 
 def timedelta_to_seconds(td):
+    # type: (datetime.timedelta) -> float
     """Equivalent to td.total_seconds() (introduced in python 2.7)."""
     return (td.microseconds + (td.seconds + td.days * 24 * 3600) * 10 ** 6) / float(10 ** 6)
 
 
 def _websocket_mask_python(mask, data):
+    # type: (bytes, bytes) -> bytes
     """Websocket masking function.
 
     `mask` is a `bytes` object of length 4; `data` is a `bytes` object of any length.
@@ -352,17 +395,17 @@ def _websocket_mask_python(mask, data):
 
     This pure-python implementation may be replaced by an optimized version when available.
     """
-    mask = array.array("B", mask)
-    unmasked = array.array("B", data)
+    mask_arr = array.array("B", mask)
+    unmasked_arr = array.array("B", data)
     for i in xrange(len(data)):
-        unmasked[i] = unmasked[i] ^ mask[i % 4]
-    if hasattr(unmasked, 'tobytes'):
+        unmasked_arr[i] = unmasked_arr[i] ^ mask_arr[i % 4]
+    if PY3:
         # tostring was deprecated in py32.  It hasn't been removed,
         # but since we turn on deprecation warnings in our tests
         # we need to use the right one.
-        return unmasked.tobytes()
+        return unmasked_arr.tobytes()
     else:
-        return unmasked.tostring()
+        return unmasked_arr.tostring()
 
 if (os.environ.get('TORNADO_NO_EXTENSION') or
         os.environ.get('TORNADO_EXTENSION') == '0'):

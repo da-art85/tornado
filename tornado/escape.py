@@ -26,7 +26,7 @@ import json
 import re
 import sys
 
-from tornado.util import PY3, unicode_type, basestring_type
+from tornado.util import PY3, unicode_type, basestring_type, StringTypes
 
 if PY3:
     from urllib.parse import parse_qs as _parse_qs
@@ -38,6 +38,15 @@ else:
     import htmlentitydefs
     import urllib as urllib_parse
 
+try:
+    import typing
+    from typing import cast
+except ImportError:
+    typing = None
+
+    def cast(typ, x):
+        return x
+
 
 _XHTML_ESCAPE_RE = re.compile('[&<>"\']')
 _XHTML_ESCAPE_DICT = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;',
@@ -45,6 +54,7 @@ _XHTML_ESCAPE_DICT = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;',
 
 
 def xhtml_escape(value):
+    # type: (typing.Union[unicode_type, bytes]) -> str
     """Escapes a string so it is valid within HTML or XML.
 
     Escapes the characters ``<``, ``>``, ``"``, ``'``, and ``&``.
@@ -60,14 +70,16 @@ def xhtml_escape(value):
 
 
 def xhtml_unescape(value):
+    # type: (typing.Union[unicode_type, bytes]) -> str
     """Un-escapes an XML-escaped string."""
-    return re.sub(r"&(#?)(\w+?);", _convert_entity, _unicode(value))
+    return re.sub(ur"&(#?)(\w+?);", _convert_entity, to_unicode(value))
 
 
 # The fact that json_encode wraps json.dumps is an implementation detail.
 # Please see https://github.com/tornadoweb/tornado/pull/706
 # before sending a pull request that adds **kwargs to this function.
 def json_encode(value):
+    # type: (typing.Any) -> str
     """JSON-encodes the given Python object."""
     # JSON permits but does not require forward slashes to be escaped.
     # This is useful when json data is emitted in a <script> tag
@@ -79,16 +91,19 @@ def json_encode(value):
 
 
 def json_decode(value):
+    # type: (typing.Union[str, bytes]) -> typing.Any
     """Returns Python objects for the given JSON string."""
     return json.loads(to_basestring(value))
 
 
 def squeeze(value):
+    # type: (str) -> str
     """Replace all sequences of whitespace chars with a single space."""
     return re.sub(r"[\x00-\x20]+", " ", value).strip()
 
 
 def url_escape(value, plus=True):
+    # type: (typing.Union[unicode_type, bytes], bool) -> str
     """Returns a URL-encoded version of the given value.
 
     If ``plus`` is true (the default), spaces will be represented
@@ -100,7 +115,7 @@ def url_escape(value, plus=True):
         The ``plus`` argument
     """
     quote = urllib_parse.quote_plus if plus else urllib_parse.quote
-    return quote(utf8(value))
+    return quote(utf8(value))  # type: ignore
 
 
 # python 3 changed things around enough that we need two separate
@@ -108,6 +123,7 @@ def url_escape(value, plus=True):
 # of parse_qs since python 3's version insists on decoding everything.
 if not PY3:
     def url_unescape(value, encoding='utf-8', plus=True):
+        # type: (typing.Union[unicode_type, bytes], str, bool) -> typing.Union[unicode_type, bytes]
         """Decodes the given value from a URL.
 
         The argument may be either a byte or unicode string.
@@ -133,6 +149,7 @@ if not PY3:
     parse_qs_bytes = _parse_qs
 else:
     def url_unescape(value, encoding='utf-8', plus=True):
+        # type: (str, str, bool) -> typing.Union[unicode_type, bytes]
         """Decodes the given value from a URL.
 
         The argument may be either a byte or unicode string.
@@ -160,6 +177,7 @@ else:
             return unquote(to_basestring(value), encoding=encoding)
 
     def parse_qs_bytes(qs, keep_blank_values=False, strict_parsing=False):
+        # type: (str, bool, bool) -> typing.Dict[str, typing.List[bytes]]
         """Parses a query string like urlparse.parse_qs, but returns the
         values as byte strings.
 
@@ -181,13 +199,14 @@ _UTF8_TYPES = (bytes, type(None))
 
 
 def utf8(value):
+    # type: (typing.Union[unicode_type, bytes, None]) -> typing.Optional[bytes]
     """Converts a string argument to a byte string.
 
     If the argument is already a byte string or None, it is returned unchanged.
     Otherwise it must be a unicode string and is encoded as utf8.
     """
     if isinstance(value, _UTF8_TYPES):
-        return value
+        return cast(bytes, value)
     if not isinstance(value, unicode_type):
         raise TypeError(
             "Expected bytes, unicode, or None; got %r" % type(value)
@@ -198,13 +217,14 @@ _TO_UNICODE_TYPES = (unicode_type, type(None))
 
 
 def to_unicode(value):
+    # type: (typing.Union[unicode_type, bytes, None]) -> typing.Optional[unicode_type]
     """Converts a string argument to a unicode string.
 
     If the argument is already a unicode string or None, it is returned
     unchanged.  Otherwise it must be a byte string and is decoded as utf8.
     """
     if isinstance(value, _TO_UNICODE_TYPES):
-        return value
+        return cast(unicode_type, value)
     if not isinstance(value, bytes):
         raise TypeError(
             "Expected bytes, unicode, or None; got %r" % type(value)
@@ -217,7 +237,7 @@ _unicode = to_unicode
 
 # When dealing with the standard library across python 2 and 3 it is
 # sometimes useful to have a direct conversion to the native string type
-if str is unicode_type:
+if PY3:
     native_str = to_unicode
 else:
     native_str = utf8
@@ -226,6 +246,7 @@ _BASESTRING_TYPES = (basestring_type, type(None))
 
 
 def to_basestring(value):
+    # type: (typing.Union[unicode_type, bytes, None]) -> typing.Optional[StringTypes]
     """Converts a string argument to a subclass of basestring.
 
     In python2, byte and unicode strings are mostly interchangeable,
@@ -235,7 +256,7 @@ def to_basestring(value):
     so this method is needed to convert byte strings to unicode.
     """
     if isinstance(value, _BASESTRING_TYPES):
-        return value
+        return cast(StringTypes, value)
     if not isinstance(value, bytes):
         raise TypeError(
             "Expected bytes, unicode, or None; got %r" % type(value)
@@ -244,6 +265,7 @@ def to_basestring(value):
 
 
 def recursive_unicode(obj):
+    # type: (typing.Any) -> typing.Any
     """Walks a simple data structure, converting byte strings to unicode.
 
     Supports lists, tuples, and dictionaries.
@@ -271,6 +293,7 @@ _URL_RE = re.compile(to_unicode(r"""\b((?:([\w-]+):(/{1,3})|www[.])(?:(?:(?:[^\s
 
 def linkify(text, shorten=False, extra_params="",
             require_protocol=False, permitted_protocols=["http", "https"]):
+    # type: (typing.Union[unicode_type, bytes], bool, typing.Union[typing.Callable[[unicode_type], unicode_type], str], bool, typing.List[str]) -> unicode_type
     """Converts plain text into HTML with links.
 
     For example: ``linkify("Hello http://tornadoweb.org!")`` would return
@@ -304,6 +327,7 @@ def linkify(text, shorten=False, extra_params="",
         extra_params = " " + extra_params.strip()
 
     def make_link(m):
+        # type: (typing.Match[unicode_type]) -> unicode_type
         url = m.group(1)
         proto = m.group(2)
         if require_protocol and not proto:
@@ -366,6 +390,7 @@ def linkify(text, shorten=False, extra_params="",
 
 
 def _convert_entity(m):
+    # type: (typing.Match[unicode_type]) -> unicode_type
     if m.group(1) == "#":
         try:
             if m.group(2)[:1].lower() == 'x':
@@ -381,9 +406,10 @@ def _convert_entity(m):
 
 
 def _build_unicode_map():
+    # type: () -> typing.Dict[unicode_type, unicode_type]
     unicode_map = {}
     for name, value in htmlentitydefs.name2codepoint.items():
-        unicode_map[name] = unichr(value)
+        unicode_map[to_unicode(name)] = unichr(value)
     return unicode_map
 
-_HTML_UNICODE_MAP = _build_unicode_map()
+_HTML_UNICODE_MAP = _build_unicode_map()  # type: typing.Dict[unicode_type, unicode_type]
