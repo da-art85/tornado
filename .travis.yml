@@ -30,6 +30,10 @@ install:
     - curl-config --version; pip freeze
 
 script:
+    - hostname
+    - cat /etc/hosts
+    - cat /etc/resolv.conf
+    - ifconfig
     # Get out of the source directory before running tests to avoid PYTHONPATH
     # confusion.  This is necessary to ensure that the speedups module can
     # be found in the installation directory.
@@ -75,7 +79,8 @@ after_success:
 # This reportedly works around an issue downloading packages from pypi on
 # travis.  Consider removing this after the underlying issue is fixed.
 # https://github.com/travis-ci/travis-ci/issues/2389
-sudo: false
+sudo: required
+dist: trusty
 
 matrix:
     fast_finish: true
