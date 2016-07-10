@@ -113,6 +113,8 @@ _watched_files = set()
 _reload_hooks = []
 _reload_attempted = False
 _io_loops = weakref.WeakKeyDictionary()  # type: ignore
+_autoreload_is_main = False
+_original_argv = None
 
 
 def start(io_loop=None, check_time=500):
@@ -224,12 +226,17 @@ def _reload():
             not os.environ.get("PYTHONPATH", "").startswith(path_prefix)):
         os.environ["PYTHONPATH"] = (path_prefix +
                                     os.environ.get("PYTHONPATH", ""))
+    argv = [sys.executable]
+    if _autoreload_is_main:
+        argv.extend(_original_argv)
+    else:
+        argv.extend(sys.argv)
     if not _has_execv:
-        subprocess.Popen([sys.executable] + sys.argv)
+        subprocess.Popen(argv)
         sys.exit(0)
     else:
         try:
-            os.execv(sys.executable, [sys.executable] + sys.argv)
+            os.execv(sys.executable, argv)
         except OSError:
             # Mac OS X versions prior to 10.6 do not support execv in
             # a process that contains multiple threads.  Instead of
@@ -242,8 +249,7 @@ def _reload():
             # Unfortunately the errno returned in this case does not
             # appear to be consistent, so we can't easily check for
             # this error specifically.
-            os.spawnv(os.P_NOWAIT, sys.executable,
-                      [sys.executable] + sys.argv)
+            os.spawnv(os.P_NOWAIT, sys.executable, argv)
             # At this point the IOLoop has been closed and finally
             # blocks will experience errors if we allow the stack to
             # unwind, so just exit uncleanly.
@@ -269,7 +275,15 @@ def main():
     can catch import-time problems like syntax errors that would otherwise
     prevent the script from reaching its call to `wait`.
     """
+    # Remember that we were launched with autoreload as main.
+    # The main module can be tricky; set the variables both in our globals
+    # (which may be __main__) and the real importable version.
+    import tornado.autoreload
+    global _autoreload_is_main
+    global _original_argv
+    tornado.autoreload._autoreload_is_main = _autoreload_is_main = True
     original_argv = sys.argv
+    tornado.autoreload._original_argv = _original_argv = original_argv
     sys.argv = sys.argv[:]
     if len(sys.argv) >= 3 and sys.argv[1] == "-m":
         mode = "module"
