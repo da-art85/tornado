@@ -509,6 +509,7 @@ class IOLoop(Configurable):
         if timeout is not None:
             self.remove_timeout(timeout_handle)
         if not future_cell[0].done():
+            future_cell[0].cancel()
             raise TimeoutError('Operation timed out after %s seconds' % timeout)
         return future_cell[0].result()
 

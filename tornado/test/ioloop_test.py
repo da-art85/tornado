@@ -405,7 +405,8 @@ class TestIOLoop(AsyncTestCase):
         """The IOLoop examines exceptions from awaitables and logs them."""
         namespace = exec_test(globals(), locals(), """
         async def callback():
-            self.io_loop.add_callback(self.stop)
+            self.io_loop.add_timeout(datetime.timedelta(seconds=0.01),
+                                     self.stop)
             1 / 0
         """)
         with NullContext():

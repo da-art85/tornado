@@ -197,7 +197,8 @@ class Future(object):
     if sys.version_info >= (3, 3):
         exec(textwrap.dedent("""
         def __await__(self):
-            return (yield self)
+            from tornado.platform.asyncio import to_asyncio_future
+            return (yield from to_asyncio_future(self))
         """))
     else:
         # Py2-compatible version for use with cython.

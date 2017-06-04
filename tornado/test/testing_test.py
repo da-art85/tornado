@@ -200,6 +200,7 @@ class GenTest(AsyncTestCase):
     def tearDown(self):
         self.assertTrue(self.finished)
         super(GenTest, self).tearDown()
+        import gc; gc.collect()
 
     @gen_test
     def test_sync(self):

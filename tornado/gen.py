@@ -1200,7 +1200,7 @@ def _argument_adapter(callback):
 # register that runner's yieldable objects with convert_yielded.
 if sys.version_info >= (3, 3):
     exec(textwrap.dedent("""
-    @coroutine
+    #@coroutine
     def _wrap_awaitable(x):
         if hasattr(x, '__await__'):
             x = x.__await__()
@@ -1209,7 +1209,7 @@ if sys.version_info >= (3, 3):
 else:
     # Py2-compatible version for use with Cython.
     # Copied from PEP 380.
-    @coroutine
+    #@coroutine
     def _wrap_awaitable(x):
         if hasattr(x, '__await__'):
             _i = x.__await__()
@@ -1254,6 +1254,18 @@ else:
                         break
         raise Return(_r)
 
+try:
+    import asyncio
+except ImportError:
+    asyncio = None
+
+if asyncio is not None:
+    orig_wrap = asyncio.coroutine(_wrap_awaitable)
+    def _wrap_awaitable(x):
+        from tornado.platform.asyncio import to_tornado_future
+        return to_tornado_future(asyncio.ensure_future(orig_wrap(x)))
+else:
+    _wrap_awaitable = coroutine(_wrap_awaitable)
 
 def convert_yielded(yielded):
     """Convert a yielded object into a `.Future`.
@@ -1277,7 +1289,8 @@ def convert_yielded(yielded):
     elif is_future(yielded):
         return yielded
     elif isawaitable(yielded):
-        return _wrap_awaitable(yielded)
+        x = _wrap_awaitable(yielded)
+        return x
     else:
         raise BadYieldError("yielded unknown object %r" % (yielded,))
 
