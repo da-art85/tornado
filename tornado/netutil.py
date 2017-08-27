@@ -182,7 +182,11 @@ def bind_sockets(port, address=None, family=socket.AF_UNSPEC,
             sockaddr = tuple([host, bound_port] + list(sockaddr[2:]))
 
         sock.setblocking(0)
-        sock.bind(sockaddr)
+        try:
+            sock.bind(sockaddr)
+        except OSError as e:
+            print(e, 'while binding', sockaddr)
+            raise
         bound_port = sock.getsockname()[1]
         sock.listen(backlog)
         sockets.append(sock)

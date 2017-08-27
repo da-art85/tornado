@@ -1,4 +1,22 @@
 from __future__ import absolute_import, division, print_function
+
+# import _pypy_openssl.lib as origlib
+# import _pypy_openssl
+# class C(object): pass
+# _pypy_openssl.lib = C()
+# for k, v in origlib.__dict__.items():
+#     setattr(_pypy_openssl.lib, k, v)
+# def make_proxy(f):
+#     def wrapper(*args, **kw):
+#         ret = f(*args, **kw)
+#         print('%s(%s, %s) -> %s' % (f, args, kw, ret))
+#         return ret
+#     return wrapper
+# _pypy_openssl.lib.SSL_read = make_proxy(_pypy_openssl.lib.SSL_read)
+# _pypy_openssl.lib.SSL_get_error = make_proxy(_pypy_openssl.lib.SSL_get_error)
+# import _cffi_ssl._stdssl
+# _cffi_ssl._stdssl.lib = _pypy_openssl.lib
+
 from tornado.concurrent import Future
 from tornado import gen
 from tornado import netutil
@@ -991,7 +1009,7 @@ class TestIOStreamStartTLS(AsyncTestCase):
         server_future = self.server_start_tls(_server_ssl_options())
         client_future = self.client_start_tls(
             ssl.create_default_context(),
-            server_hostname=b'127.0.0.1')
+            server_hostname='127.0.0.1')
         with ExpectLog(gen_log, "SSL Error"):
             with self.assertRaises(ssl.SSLError):
                 # The client fails to connect with an SSL error.
