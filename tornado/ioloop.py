@@ -662,6 +662,8 @@ class IOLoop(Configurable):
         The callback is invoked with one argument, the
         `.Future`.
         """
+        from tornado.gen import convert_yielded
+        future = convert_yielded(future)
         assert is_future(future)
         callback = stack_context.wrap(callback)
         future_add_done_callback(future,

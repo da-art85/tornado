@@ -44,7 +44,8 @@ def read_stream_body(stream, callback):
             conn.detach()
             callback((self.start_line, self.headers, b''.join(chunks)))
     conn = HTTP1Connection(stream, True)
-    conn.read_response(Delegate())
+    import asyncio
+    asyncio.ensure_future(conn.read_response(Delegate()))
 
 
 class HandlerBaseTestCase(AsyncHTTPTestCase):

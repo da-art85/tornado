@@ -151,24 +151,23 @@ class HTTP1Connection(httputil.HTTPConnection):
             delegate = _GzipMessageDelegate(delegate, self.params.chunk_size)
         return self._read_message(delegate)
 
-    @gen.coroutine
-    def _read_message(self, delegate):
+    async def _read_message(self, delegate):
         need_delegate_close = False
         try:
             header_future = self.stream.read_until_regex(
                 b"\r?\n\r?\n",
                 max_bytes=self.params.max_header_size)
             if self.params.header_timeout is None:
-                header_data = yield header_future
+                header_data = await header_future
             else:
                 try:
-                    header_data = yield gen.with_timeout(
+                    header_data = await gen.with_timeout(
                         self.stream.io_loop.time() + self.params.header_timeout,
                         header_future,
                         quiet_exceptions=iostream.StreamClosedError)
                 except gen.TimeoutError:
                     self.close()
-                    raise gen.Return(False)
+                    return False
             start_line, headers = self._parse_headers(header_data)
             if self.is_client:
                 start_line = httputil.parse_response_start_line(start_line)
@@ -184,11 +183,11 @@ class HTTP1Connection(httputil.HTTPConnection):
             with _ExceptionLoggingContext(app_log):
                 header_future = delegate.headers_received(start_line, headers)
                 if header_future is not None:
-                    yield header_future
+                    await header_future
             if self.stream is None:
                 # We've been detached.
                 need_delegate_close = False
-                raise gen.Return(False)
+                return False
             skip_body = False
             if self.is_client:
                 if (self._request_start_line is not None and
@@ -209,7 +208,7 @@ class HTTP1Connection(httputil.HTTPConnection):
                             "Response code %d cannot have body" % code)
                     # TODO: client delegates will get headers_received twice
                     # in the case of a 100-continue.  Document or change?
-                    yield self._read_message(delegate)
+                    await self._read_message(delegate)
             else:
                 if (headers.get("Expect") == "100-continue" and
                         not self._write_finished):
@@ -219,10 +218,10 @@ class HTTP1Connection(httputil.HTTPConnection):
                     start_line.code if self.is_client else 0, headers, delegate)
                 if body_future is not None:
                     if self._body_timeout is None:
-                        yield body_future
+                        await body_future
                     else:
                         try:
-                            yield gen.with_timeout(
+                            await gen.with_timeout(
                                 self.stream.io_loop.time() + self._body_timeout,
                                 body_future,
                                 quiet_exceptions=iostream.StreamClosedError)
@@ -230,7 +229,7 @@ class HTTP1Connection(httputil.HTTPConnection):
                             gen_log.info("Timeout reading body from %s",
                                          self.context)
                             self.stream.close()
-                            raise gen.Return(False)
+                            return False
             self._read_finished = True
             if not self._write_finished or self.is_client:
                 need_delegate_close = False
@@ -243,25 +242,25 @@ class HTTP1Connection(httputil.HTTPConnection):
                     self.stream is not None and
                     not self.stream.closed()):
                 self.stream.set_close_callback(self._on_connection_close)
-                yield self._finish_future
+                await self._finish_future
             if self.is_client and self._disconnect_on_finish:
                 self.close()
             if self.stream is None:
-                raise gen.Return(False)
+                return False
         except httputil.HTTPInputError as e:
             gen_log.info("Malformed HTTP message from %s: %s",
                          self.context, e)
             if not self.is_client:
-                yield self.stream.write(b'HTTP/1.1 400 Bad Request\r\n\r\n')
+                await self.stream.write(b'HTTP/1.1 400 Bad Request\r\n\r\n')
             self.close()
-            raise gen.Return(False)
+            return False
         finally:
             if need_delegate_close:
                 with _ExceptionLoggingContext(app_log):
                     delegate.on_connection_close()
             header_future = None
             self._clear_callbacks()
-        raise gen.Return(True)
+        return True
 
     def _clear_callbacks(self):
         """Clears the callback attributes.
@@ -579,24 +578,22 @@ class HTTP1Connection(httputil.HTTPConnection):
             return self._read_body_until_close(delegate)
         return None
 
-    @gen.coroutine
-    def _read_fixed_body(self, content_length, delegate):
+    async def _read_fixed_body(self, content_length, delegate):
         while content_length > 0:
-            body = yield self.stream.read_bytes(
+            body = await self.stream.read_bytes(
                 min(self.params.chunk_size, content_length), partial=True)
             content_length -= len(body)
             if not self._write_finished or self.is_client:
                 with _ExceptionLoggingContext(app_log):
                     ret = delegate.data_received(body)
                     if ret is not None:
-                        yield ret
+                        await ret
 
-    @gen.coroutine
-    def _read_chunked_body(self, delegate):
+    async def _read_chunked_body(self, delegate):
         # TODO: "chunk extensions" http://tools.ietf.org/html/rfc2616#section-3.6.1
         total_size = 0
         while True:
-            chunk_len = yield self.stream.read_until(b"\r\n", max_bytes=64)
+            chunk_len = await self.stream.read_until(b"\r\n", max_bytes=64)
             chunk_len = int(chunk_len.strip(), 16)
             if chunk_len == 0:
                 return
@@ -605,24 +602,25 @@ class HTTP1Connection(httputil.HTTPConnection):
                 raise httputil.HTTPInputError("chunked body too large")
             bytes_to_read = chunk_len
             while bytes_to_read:
-                chunk = yield self.stream.read_bytes(
+                chunk = await self.stream.read_bytes(
                     min(bytes_to_read, self.params.chunk_size), partial=True)
                 bytes_to_read -= len(chunk)
                 if not self._write_finished or self.is_client:
                     with _ExceptionLoggingContext(app_log):
                         ret = delegate.data_received(chunk)
                         if ret is not None:
-                            yield ret
+                            await ret
             # chunk ends with \r\n
-            crlf = yield self.stream.read_bytes(2)
+            crlf = await self.stream.read_bytes(2)
             assert crlf == b"\r\n"
 
-    @gen.coroutine
-    def _read_body_until_close(self, delegate):
-        body = yield self.stream.read_until_close()
+    async def _read_body_until_close(self, delegate):
+        body = await self.stream.read_until_close()
         if not self._write_finished or self.is_client:
             with _ExceptionLoggingContext(app_log):
-                delegate.data_received(body)
+                ret = delegate.data_received(body)
+                if ret is not None:
+                    await ret
 
 
 class _GzipMessageDelegate(httputil.HTTPMessageDelegate):
@@ -644,8 +642,7 @@ class _GzipMessageDelegate(httputil.HTTPMessageDelegate):
             del headers["Content-Encoding"]
         return self._delegate.headers_received(start_line, headers)
 
-    @gen.coroutine
-    def data_received(self, chunk):
+    async def data_received(self, chunk):
         if self._decompressor:
             compressed_data = chunk
             while compressed_data:
@@ -654,12 +651,12 @@ class _GzipMessageDelegate(httputil.HTTPMessageDelegate):
                 if decompressed:
                     ret = self._delegate.data_received(decompressed)
                     if ret is not None:
-                        yield ret
+                        await ret
                 compressed_data = self._decompressor.unconsumed_tail
         else:
             ret = self._delegate.data_received(chunk)
             if ret is not None:
-                yield ret
+                await ret
 
     def finish(self):
         if self._decompressor is not None:
@@ -693,8 +690,7 @@ class HTTP1ServerConnection(object):
         self.context = context
         self._serving_future = None
 
-    @gen.coroutine
-    def close(self):
+    async def close(self):
         """Closes the connection.
 
         Returns a `.Future` that resolves after the serving loop has exited.
@@ -703,7 +699,7 @@ class HTTP1ServerConnection(object):
         # Block until the serving loop is done, but ignore any exceptions
         # (start_serving is already responsible for logging them).
         try:
-            yield self._serving_future
+            await self._serving_future
         except Exception:
             pass
 
@@ -718,15 +714,14 @@ class HTTP1ServerConnection(object):
         self.stream.io_loop.add_future(self._serving_future,
                                        lambda f: f.result())
 
-    @gen.coroutine
-    def _server_request_loop(self, delegate):
+    async def _server_request_loop(self, delegate):
         try:
             while True:
                 conn = HTTP1Connection(self.stream, False,
                                        self.params, self.context)
                 request_delegate = delegate.start_request(self, conn)
                 try:
-                    ret = yield conn.read_response(request_delegate)
+                    ret = await conn.read_response(request_delegate)
                 except (iostream.StreamClosedError,
                         iostream.UnsatisfiableReadError):
                     return
@@ -740,6 +735,6 @@ class HTTP1ServerConnection(object):
                     return
                 if not ret:
                     return
-                yield gen.moment
+                await gen.moment
         finally:
             delegate.on_close(self)

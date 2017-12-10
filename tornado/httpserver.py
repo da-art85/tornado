@@ -178,12 +178,11 @@ class HTTPServer(TCPServer, Configurable,
     def configurable_default(cls):
         return HTTPServer
 
-    @gen.coroutine
-    def close_all_connections(self):
+    async def close_all_connections(self):
         while self._connections:
             # Peek at an arbitrary element of the set
             conn = next(iter(self._connections))
-            yield conn.close()
+            await conn.close()
 
     def handle_stream(self, stream, address):
         context = _HTTPRequestContext(stream, address,
