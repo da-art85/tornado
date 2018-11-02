@@ -76,11 +76,6 @@ if TYPE_CHECKING:
         # The common base interface implemented by WebSocketHandler on
         # the server side and WebSocketClientConnection on the client
         # side.
-        def on_ws_connection_close(
-            self, close_code: int = None, close_reason: str = None
-        ) -> None:
-            pass
-
         def on_message(self, message: Union[str, bytes]) -> Optional["Awaitable[None]"]:
             pass
 
@@ -225,7 +220,6 @@ class WebSocketHandler(tornado.web.RequestHandler):
         self.ws_connection = None  # type: Optional[WebSocketProtocol]
         self.close_code = None  # type: Optional[int]
         self.close_reason = None  # type: Optional[str]
-        self.stream = None  # type: Optional[IOStream]
         self._on_close_called = False
 
     def get(self, *args: Any, **kwargs: Any) -> None:
@@ -275,13 +269,22 @@ class WebSocketHandler(tornado.web.RequestHandler):
 
         self.ws_connection = self.get_websocket_protocol()
         if self.ws_connection:
-            self.ws_connection.accept_connection(self)
+            if self.ws_connection.accept_connection(self):
+                IOLoop.current().add_callback(self._start_ws)
         else:
             self.set_status(426, "Upgrade Required")
             self.set_header("Sec-WebSocket-Version", "7, 8, 13")
             self.finish()
 
-    stream = None
+    async def _start_ws(self) -> None:
+        open_result = self.open(*self.open_args, **self.open_kwargs)
+        if open_result is not None:
+            await open_result
+        if self.ws_connection is not None:
+            self.close_code, self.close_reason = (
+                await self.ws_connection._receive_frame_loop()
+            )
+        self.on_connection_close()
 
     @property
     def ping_interval(self) -> Optional[float]:
@@ -559,8 +562,9 @@ class WebSocketHandler(tornado.web.RequestHandler):
 
         .. versionadded:: 3.1
         """
-        assert self.stream is not None
-        self.stream.set_nodelay(value)
+        assert self.ws_connection is not None
+        assert self.ws_connection.stream is not None
+        self.ws_connection.stream.set_nodelay(value)
 
     def on_connection_close(self) -> None:
         if self.ws_connection:
@@ -570,13 +574,6 @@ class WebSocketHandler(tornado.web.RequestHandler):
             self._on_close_called = True
             self.on_close()
             self._break_cycles()
-
-    def on_ws_connection_close(
-        self, close_code: int = None, close_reason: str = None
-    ) -> None:
-        self.close_code = close_code
-        self.close_reason = close_reason
-        self.on_connection_close()
 
     def _break_cycles(self) -> None:
         # WebSocketHandlers call finish() early, but we don't want to
@@ -588,14 +585,15 @@ class WebSocketHandler(tornado.web.RequestHandler):
             super(WebSocketHandler, self)._break_cycles()
 
     def send_error(self, *args: Any, **kwargs: Any) -> None:
-        if self.stream is None:
+        if self.ws_connection is None:
             super(WebSocketHandler, self).send_error(*args, **kwargs)
         else:
             # If we get an uncaught exception during the handshake,
             # we have no choice but to abruptly close the connection.
             # TODO: for uncaught exceptions after the handshake,
             # we can close the connection more gracefully.
-            self.stream.close()
+            if self.ws_connection.stream is not None:
+                self.ws_connection.stream.close()
 
     def get_websocket_protocol(self) -> Optional["WebSocketProtocol"]:
         websocket_version = self.request.headers.get("Sec-WebSocket-Version")
@@ -679,7 +677,7 @@ class WebSocketProtocol(abc.ABC):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def accept_connection(self, handler: WebSocketHandler) -> None:
+    def accept_connection(self, handler: WebSocketHandler) -> bool:
         raise NotImplementedError()
 
     @abc.abstractmethod
@@ -864,7 +862,7 @@ class WebSocketProtocol13(WebSocketProtocol):
     def selected_subprotocol(self, value: Optional[str]) -> None:
         self._selected_subprotocol = value
 
-    def accept_connection(self, handler: WebSocketHandler) -> None:
+    def accept_connection(self, handler: WebSocketHandler) -> bool:
         try:
             self._handle_websocket_headers(handler)
         except ValueError:
@@ -872,14 +870,14 @@ class WebSocketProtocol13(WebSocketProtocol):
             log_msg = "Missing/Invalid WebSocket headers"
             handler.finish(log_msg)
             gen_log.debug(log_msg)
-            return
+            return False
 
         try:
-            self._accept_connection(handler)
+            return self._accept_connection(handler)
         except ValueError:
             gen_log.debug("Malformed WebSocket request received", exc_info=True)
             self._abort()
-            return
+            return False
 
     def _handle_websocket_headers(self, handler: WebSocketHandler) -> None:
         """Verifies all invariant- and required headers
@@ -906,10 +904,7 @@ class WebSocketProtocol13(WebSocketProtocol):
             cast(str, handler.request.headers.get("Sec-Websocket-Key"))
         )
 
-    @gen.coroutine
-    def _accept_connection(
-        self, handler: WebSocketHandler
-    ) -> Generator[Any, Any, None]:
+    def _accept_connection(self, handler: WebSocketHandler) -> bool:
         subprotocol_header = handler.request.headers.get("Sec-WebSocket-Protocol")
         if subprotocol_header:
             subprotocols = [s.strip() for s in subprotocol_header.split(",")]
@@ -947,14 +942,7 @@ class WebSocketProtocol13(WebSocketProtocol):
         handler.finish()
 
         self.stream = handler._detach_stream()
-
-        self.start_pinging()
-        open_result = self._run_callback(
-            handler.open, *handler.open_args, **handler.open_kwargs
-        )
-        if open_result is not None:
-            yield open_result
-        yield self._receive_frame_loop()
+        return True
 
     def _parse_extensions_header(
         self, headers: httputil.HTTPHeaders
@@ -1106,14 +1094,14 @@ class WebSocketProtocol13(WebSocketProtocol):
         assert isinstance(data, bytes)
         self._write_frame(True, 0x9, data)
 
-    @gen.coroutine
-    def _receive_frame_loop(self) -> Generator[Any, Any, None]:
+    async def _receive_frame_loop(self) -> Tuple[int, str]:
+        self.start_pinging()
         try:
             while not self.client_terminated:
-                yield self._receive_frame()
+                await self._receive_frame()
         except StreamClosedError:
             self._abort()
-        self.handler.on_ws_connection_close(self.close_code, self.close_reason)
+        return (self.close_code, self.close_reason)
 
     def _read_bytes(self, n: int) -> Awaitable[bytes]:
         self._wire_bytes_in += n
@@ -1435,13 +1423,6 @@ class WebSocketClientConnection(simple_httpclient._HTTPConnection):
         self.tcp_client.close()
         super(WebSocketClientConnection, self).on_connection_close()
 
-    def on_ws_connection_close(
-        self, close_code: int = None, close_reason: str = None
-    ) -> None:
-        self.close_code = close_code
-        self.close_reason = close_reason
-        self.on_connection_close()
-
     def _on_http_response(self, response: httpclient.HTTPResponse) -> None:
         if not self.connect_future.done():
             if response.error:
@@ -1472,8 +1453,7 @@ class WebSocketClientConnection(simple_httpclient._HTTPConnection):
         self.protocol._process_server_headers(self.key, self.headers)
         self.protocol.stream = self.connection.detach()
 
-        IOLoop.current().add_callback(self.protocol._receive_frame_loop)
-        self.protocol.start_pinging()
+        IOLoop.current().add_callback(self._start_ws)
 
         # Once we've taken over the connection, clear the final callback
         # we set on the http request.  This deactivates the error handling
@@ -1482,6 +1462,10 @@ class WebSocketClientConnection(simple_httpclient._HTTPConnection):
         self.final_callback = None  # type: ignore
 
         future_set_result_unless_cancelled(self.connect_future, self)
+
+    async def _start_ws(self):
+        self.close_code, self.close_reason = await self.protocol._receive_frame_loop()
+        self.on_connection_close()
 
     def write_message(
         self, message: Union[str, bytes], binary: bool = False
