@@ -344,13 +344,22 @@ class HTTP1Connection(httputil.HTTPConnection):
         if not self._finish_future.done():
             future_set_result_unless_cancelled(self._finish_future, None)
 
-    def detach(self) -> iostream.IOStream:
+    def detach(self, closer: Callable[[None], None] = None) -> iostream.IOStream:
         """Take control of the underlying stream.
 
         Returns the underlying `.IOStream` object and stops all further
         HTTP processing.  May only be called during
         `.HTTPMessageDelegate.headers_received`.  Intended for implementing
         protocols like websockets that tunnel over an HTTP handshake.
+
+        If a ``closer`` callback is given, it will be called when the
+        `HTTPServer` closes this connection (to implement graceful
+        shutdown).
+
+        .. versionchanged:: 6.0
+
+           Added the ``closer`` argument.
+
         """
         self._clear_callbacks()
         stream = self.stream

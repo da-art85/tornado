@@ -1466,7 +1466,7 @@ class WebSocketClientConnection(simple_httpclient._HTTPConnection):
             self.io_loop.remove_timeout(self._timeout)
             self._timeout = None
 
-        self.stream = self.connection.detach()
+        self.stream = self.connection.detach(self.close)
         self.stream.set_close_callback(self.on_connection_close)
         # Once we've taken over the connection, clear the final callback
         # we set on the http request.  This deactivates the error handling
