@@ -250,6 +250,7 @@ class WebSocketTest(WebSocketBaseTestCase):
 
     def tearDown(self):
         super(WebSocketTest, self).tearDown()
+        self.assertTrue(self.close_future.done())
         RequestHandler._template_loaders.clear()
 
     def test_http_request(self):

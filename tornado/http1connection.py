@@ -308,6 +308,7 @@ class HTTP1Connection(httputil.HTTPConnection):
         self._write_callback = None
         self._write_future = None  # type: Optional[Future[None]]
         self._close_callback = None  # type: Optional[Callable[[], None]]
+        self._detach_close_callback = None  # type: Optional[Callable[[], None]]
         if self.stream is not None:
             self.stream.set_close_callback(None)
 
@@ -340,11 +341,14 @@ class HTTP1Connection(httputil.HTTPConnection):
     def close(self) -> None:
         if self.stream is not None:
             self.stream.close()
+        if self._detach_close_callback is not None:
+            print("closing detach")
+            self._detach_close_callback()
         self._clear_callbacks()
         if not self._finish_future.done():
             future_set_result_unless_cancelled(self._finish_future, None)
 
-    def detach(self, closer: Callable[[None], None] = None) -> iostream.IOStream:
+    def detach(self, close_callback: Callable[[], None] = None) -> iostream.IOStream:
         """Take control of the underlying stream.
 
         Returns the underlying `.IOStream` object and stops all further
@@ -352,20 +356,23 @@ class HTTP1Connection(httputil.HTTPConnection):
         `.HTTPMessageDelegate.headers_received`.  Intended for implementing
         protocols like websockets that tunnel over an HTTP handshake.
 
-        If a ``closer`` callback is given, it will be called when the
+        If a ``close_callback`` callback is given, it will be called when the
         `HTTPServer` closes this connection (to implement graceful
         shutdown).
 
         .. versionchanged:: 6.0
 
-           Added the ``closer`` argument.
+           Added the ``close_callback`` argument.
 
         """
         self._clear_callbacks()
         stream = self.stream
         self.stream = None  # type: ignore
-        if not self._finish_future.done():
-            future_set_result_unless_cancelled(self._finish_future, None)
+        self._detach_close_callback = close_callback
+        if close_callback is not None:
+            print("setting detach close")
+        # if not self._finish_future.done():
+        #     future_set_result_unless_cancelled(self._finish_future, None)
         return stream
 
     def set_body_timeout(self, timeout: float) -> None:
