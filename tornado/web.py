@@ -2285,19 +2285,23 @@ class _HandlerDelegate(httputil.HTTPMessageDelegate):
             self.chunks.append(data)
             return None
 
-    def finish(self) -> None:
+    def finish(self) -> Optional[Awaitable[None]]:
         if self.stream_request_body:
             future_set_result_unless_cancelled(self.request._body_future, None)
+            return None
         else:
             self.request.body = b"".join(self.chunks)
             self.request._parse_body()
-            self.execute()
+            return self.execute()
 
     def on_connection_close(self) -> None:
         if self.stream_request_body:
             self.handler.on_connection_close()
         else:
             self.chunks = None  # type: ignore
+        if hasattr(self, "_exec_fut") and self._exec_fut.done():
+            print("blort")
+            self._exec_fut.result()
 
     def execute(self) -> Optional[Awaitable[None]]:
         # If template cache is disabled (usually in the debug mode),
@@ -2327,6 +2331,7 @@ class _HandlerDelegate(httputil.HTTPMessageDelegate):
         fut = gen.convert_yielded(
             self.handler._execute(transforms, *self.path_args, **self.path_kwargs)
         )
+        self._exec_fut = fut
         fut.add_done_callback(lambda f: f.result())
         # If we are streaming the request body, then execute() is finished
         # when the handler has prepared to receive the body.  If not,

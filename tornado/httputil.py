@@ -568,7 +568,7 @@ class HTTPMessageDelegate(object):
         """
         pass
 
-    def finish(self) -> None:
+    def finish(self) -> Optional[Awaitable[None]]:
         """Called after the last chunk of data has been received."""
         pass
 

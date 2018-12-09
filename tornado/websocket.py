@@ -242,7 +242,7 @@ class WebSocketHandler(tornado.web.RequestHandler):
         self.stream = None  # type: Optional[IOStream]
         self._on_close_called = False
 
-    def get(self, *args: Any, **kwargs: Any) -> None:
+    async def get(self, *args: Any, **kwargs: Any) -> None:
         self.open_args = args
         self.open_kwargs = kwargs
 
@@ -289,7 +289,7 @@ class WebSocketHandler(tornado.web.RequestHandler):
 
         self.ws_connection = self.get_websocket_protocol()
         if self.ws_connection:
-            self.ws_connection.accept_connection(self)
+            await self.ws_connection.accept_connection(self)
         else:
             self.set_status(426, "Upgrade Required")
             self.set_header("Sec-WebSocket-Version", "7, 8, 13")
@@ -683,7 +683,7 @@ class WebSocketProtocol(abc.ABC):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def accept_connection(self, handler: WebSocketHandler) -> None:
+    async def accept_connection(self, handler: WebSocketHandler) -> None:
         raise NotImplementedError()
 
     @abc.abstractmethod
@@ -865,7 +865,7 @@ class WebSocketProtocol13(WebSocketProtocol):
     def selected_subprotocol(self, value: Optional[str]) -> None:
         self._selected_subprotocol = value
 
-    def accept_connection(self, handler: WebSocketHandler) -> None:
+    async def accept_connection(self, handler: WebSocketHandler) -> None:
         try:
             self._handle_websocket_headers(handler)
         except ValueError:
@@ -875,8 +875,12 @@ class WebSocketProtocol13(WebSocketProtocol):
             gen_log.debug(log_msg)
             return
 
+        import asyncio
+
         try:
-            self._accept_connection(handler)
+            await self._accept_connection(handler)
+        except asyncio.CancelledError:
+            pass
         except ValueError:
             gen_log.debug("Malformed WebSocket request received", exc_info=True)
             self._abort()

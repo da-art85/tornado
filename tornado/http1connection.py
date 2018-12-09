@@ -369,10 +369,8 @@ class HTTP1Connection(httputil.HTTPConnection):
         stream = self.stream
         self.stream = None  # type: ignore
         self._detach_close_callback = close_callback
-        if close_callback is not None:
-            print("setting detach close")
-        # if not self._finish_future.done():
-        #     future_set_result_unless_cancelled(self._finish_future, None)
+        if not self._finish_future.done():
+            future_set_result_unless_cancelled(self._finish_future, None)
         return stream
 
     def set_body_timeout(self, timeout: float) -> None:
@@ -753,7 +751,7 @@ class _GzipMessageDelegate(httputil.HTTPMessageDelegate):
             if ret is not None:
                 await ret
 
-    def finish(self) -> None:
+    def finish(self) -> Optional[Awaitable[None]]:
         if self._decompressor is not None:
             tail = self._decompressor.flush()
             if tail:

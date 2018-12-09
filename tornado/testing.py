@@ -178,6 +178,12 @@ class AsyncTestCase(unittest.TestCase):
         self.io_loop.make_current()
 
     def tearDown(self) -> None:
+        import asyncio
+
+        tasks = asyncio.Task.all_tasks()
+        for t in tasks:
+            t.cancel()
+        self.io_loop.run_sync(lambda: asyncio.gather(*tasks))
         # Clean up Subprocess, so it can be used again with a new ioloop.
         Subprocess.uninitialize()
         self.io_loop.clear_current()
