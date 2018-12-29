@@ -6,11 +6,18 @@ import unittest
 from tornado.concurrent import Future
 from tornado import gen
 from tornado.httpclient import HTTPError, HTTPRequest
+from tornado.httpserver import HTTPServer
 from tornado.locks import Event
 from tornado.log import gen_log, app_log
 from tornado.simple_httpclient import SimpleAsyncHTTPClient
 from tornado.template import DictLoader
-from tornado.testing import AsyncHTTPTestCase, gen_test, bind_unused_port, ExpectLog
+from tornado.testing import (
+    AsyncHTTPTestCase,
+    gen_test,
+    bind_unused_port,
+    ExpectLog,
+    AsyncTestCase,
+)
 from tornado.web import Application, RequestHandler
 
 try:
@@ -780,3 +787,22 @@ class MaxMessageSizeTest(WebSocketBaseTestCase):
         self.assertEqual(ws.close_reason, "message too big")
         # TODO: Needs tests of messages split over multiple
         # continuation frames.
+
+
+class CloseAllConnectionsTest(AsyncTestCase):
+    @gen_test
+    def test_close_all_connections(self):
+        # Create a server by hand instead of using AsyncHTTPTestCase
+        # so we can control the shutdown.
+        close_future = Future()  # type: Future[None]
+        server = HTTPServer(
+            Application([("/", EchoHandler, dict(close_future=close_future))])
+        )
+        sock, port = bind_unused_port()
+        server.add_socket(sock)
+        conn = yield websocket_connect("ws://127.0.0.1:%d/" % port)
+        yield conn.write_message("hello")
+        resp = yield conn.read_message()
+        self.assertEqual(resp, "hello")
+        yield server.close_all_connections()
+        yield close_future
