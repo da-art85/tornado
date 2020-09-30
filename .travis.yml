@@ -12,7 +12,7 @@ env:
   global:
     - CIBW_BUILD="cp3[56789]*"
     - CIBW_TEST_COMMAND="python3 -m tornado.test"
-    - CIBW_TEST_COMMAND_WINDOWS="python -m tornado.test --fail-if-logs=false"
+    - CIBW_TEST_COMMAND_WINDOWS="python -m tornado.test --verbose --fail-if-logs=false"
 
 # Before starting the full build matrix, run one test configuration
 # and the linter (the `black` linter is especially likely to catch
