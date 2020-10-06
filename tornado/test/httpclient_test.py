@@ -827,17 +827,22 @@ class SyncHTTPClientSubprocessTest(unittest.TestCase):
         # manifest if that lambda isn't there or is a simpler object
         # like an int (nor does it manifest in the tornado test suite
         # as a whole, which is why we use this subprocess).
-        proc = subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                "from tornado.httpclient import HTTPClient; f = lambda: None; c = HTTPClient()",
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            check=True,
-            timeout=5,
-        )
+        try:
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    "from tornado.httpclient import HTTPClient; f = lambda: None; c = HTTPClient()",
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=True,
+                timeout=5,
+            )
+        except subprocess.TimeoutExpired as e:
+            print("STDOUT:")
+            print(to_unicode(e.stdout))
+            raise
         if proc.stdout:
             print("STDOUT:")
             print(to_unicode(proc.stdout))
