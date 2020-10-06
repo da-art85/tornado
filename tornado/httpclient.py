@@ -110,13 +110,17 @@ class HTTPClient(object):
         self._closed = False
 
     def __del__(self) -> None:
+        print("destructing sync httpclient")
         self.close()
 
     def close(self) -> None:
         """Closes the HTTPClient, freeing any resources used."""
         if not self._closed:
+            print("closing async client in sync client")
             self._async_client.close()
+            print("closing ioloop")
             self._io_loop.close()
+            print("closed")
             self._closed = True
 
     def fetch(
