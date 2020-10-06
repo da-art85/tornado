@@ -88,7 +88,7 @@ jobs:
     # the quick stage runs first, but putting this at the end lets us take
     # advantage of travis-ci's defaults and not repeat stage:test in the others.
     - python: '3.8'
-      env: TOX_ENV=py38,lint
+      env: TOX_ENV=lint
       stage: quick
 
 install:
