@@ -10,9 +10,9 @@ addons:
 
 env:
   global:
-    - CIBW_BUILD="cp3[56789]*"
-    - CIBW_TEST_COMMAND="python3 -m tornado.test"
-    - CIBW_TEST_COMMAND_WINDOWS="python -m tornado.test --verbose --fail-if-logs=false"
+    - CIBW_BUILD="cp3[9]*"
+    - CIBW_TEST_COMMAND="python3 -m tornado.test tornado.test.httpclient_test.SyncHTTPClientSubprocessTest"
+    - CIBW_TEST_COMMAND_WINDOWS="python -m tornado.test --verbose --fail-if-logs=false tornado.test.httpclient_test.SyncHTTPClientSubprocessTest"
 
 # Before starting the full build matrix, run one test configuration
 # and the linter (the `black` linter is especially likely to catch
