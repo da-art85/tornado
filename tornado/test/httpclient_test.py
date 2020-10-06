@@ -832,7 +832,7 @@ class SyncHTTPClientSubprocessTest(unittest.TestCase):
                 [
                     sys.executable,
                     "-c",
-                    "print(1); #from tornado.httpclient import HTTPClient; f = lambda: None; c = HTTPClient(); print(2)",
+                    "print(1); from tornado.httpclient import HTTPClient; f = lambda: None; c = HTTPClient(); print(2)",
                 ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
