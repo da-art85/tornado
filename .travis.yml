@@ -22,7 +22,7 @@ stages:
   - test
 
 jobs:
-  fast_finish: true
+  fast_finish: false
   include:
     # We have two and a half types of builds: Wheel builds run on all supported
     # platforms and run the basic test suite for all supported python versions.
