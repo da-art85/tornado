@@ -73,7 +73,7 @@ jobs:
       env: TOX_ENV=py37-full
     - python: '3.8'
       env: TOX_ENV=py38-full
-    - python: '3.9-dev'
+    - python: '3.9'
       env: TOX_ENV=py39-full
     - python: nightly
       env: TOX_ENV=py3
